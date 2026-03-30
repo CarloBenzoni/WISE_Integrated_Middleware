@@ -95,9 +95,9 @@ public sealed class OpcUaAdapter(
             opcUaOptions.RecursiveBrowse,
             cancellationToken);
 
-        var axisPositionNodeId = FindNodeIdByName(discoveredNodes, "AxisPosition");
-        var machineStatusNodeId = FindNodeIdByName(discoveredNodes, "MachineStatus");
-        var alarmCodeNodeId = FindNodeIdByName(discoveredNodes, "AlarmCode");
+        var axisPositionNodeId = FindNodeIdByName(discoveredNodes, opcUaOptions.BrowseNames.AxisPositionBrowseName);
+        var machineStatusNodeId = FindNodeIdByName(discoveredNodes, opcUaOptions.BrowseNames.MachineStatusBrowseName);
+        var alarmCodeNodeId = FindNodeIdByName(discoveredNodes, opcUaOptions.BrowseNames.AlarmCodeBrowseName);
 
         if (axisPositionNodeId is null || machineStatusNodeId is null || alarmCodeNodeId is null)
         {
@@ -370,7 +370,10 @@ public sealed class OpcUaAdapter(
                         childNodeId.ToString(),
                         reference.DisplayName?.Text ?? reference.BrowseName?.Name ?? childNodeId.ToString()));
                 }
-                else if (recursive && reference.NodeClass == NodeClass.Object && visited.Add(childNodeId.ToString()))
+
+                if (recursive &&
+                    (reference.NodeClass == NodeClass.Object || reference.NodeClass == NodeClass.Variable) &&
+                    visited.Add(childNodeId.ToString()))
                 {
                     queue.Enqueue(childNodeId);
                 }

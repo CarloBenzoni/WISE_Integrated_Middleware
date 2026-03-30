@@ -27,7 +27,7 @@ public sealed class WorkerOptions
 public sealed class OpcUaOptions
 {
     public string PlcId { get; set; } = "S7-1200-Station_1";
-    public string EndpointUrl { get; set; } = "opc.tcp://127.0.0.1:62541/WiseOpcUaTestServer";
+    public string EndpointUrl { get; set; } = "opc.tcp://192.168.1.121:4840";
     public bool UseSecurity { get; set; }
     public MessageSecurityMode SecurityMode { get; set; } = MessageSecurityMode.None;
     public string SecurityPolicyUri { get; set; } = SecurityPolicies.None;
@@ -35,10 +35,11 @@ public sealed class OpcUaOptions
     public string SessionName { get; set; } = "WISE Integrated Middleware OPC UA Client";
     public int SessionTimeoutMs { get; set; } = 60000;
     public int ReconnectPeriodMs { get; set; } = 10000;
-    public string DiscoveryRootNodeId { get; set; } = "ns=2;s=PlcSim";
+    public string DiscoveryRootNodeId { get; set; } = "i=85";
     public bool RecursiveBrowse { get; set; } = true;
     public OpcUaUserOptions User { get; set; } = new();
     public PlcNodeMappingOptions Nodes { get; set; } = new();
+    public PlcNodeBrowseNameOptions BrowseNames { get; set; } = new();
 }
 
 public sealed class OpcUaUserOptions
@@ -50,9 +51,16 @@ public sealed class OpcUaUserOptions
 
 public sealed class PlcNodeMappingOptions
 {
-    public string AxisPositionNodeId { get; set; } = "ns=2;s=PlcSim/AxisPosition";
-    public string MachineStatusNodeId { get; set; } = "ns=2;s=PlcSim/MachineStatus";
-    public string AlarmCodeNodeId { get; set; } = "ns=2;s=PlcSim/AlarmCode";
+    public string AxisPositionNodeId { get; set; } = string.Empty;
+    public string MachineStatusNodeId { get; set; } = string.Empty;
+    public string AlarmCodeNodeId { get; set; } = string.Empty;
+}
+
+public sealed class PlcNodeBrowseNameOptions
+{
+    public string AxisPositionBrowseName { get; set; } = "actualSpeed";
+    public string MachineStatusBrowseName { get; set; } = "isActive";
+    public string AlarmCodeBrowseName { get; set; } = "setpointSpeed";
 }
 
 public sealed class StorageOptions

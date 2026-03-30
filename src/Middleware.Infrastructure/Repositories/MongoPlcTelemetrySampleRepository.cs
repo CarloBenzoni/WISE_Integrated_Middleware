@@ -35,6 +35,22 @@ public sealed class MongoPlcTelemetrySampleRepository : IPlcTelemetrySampleRepos
         return document?.ToDomain();
     }
 
+    public async Task<IReadOnlyCollection<PlcTelemetrySample>> QueryRangeAsync(
+        DateTimeOffset startUtc,
+        DateTimeOffset endUtc,
+        CancellationToken cancellationToken)
+    {
+        var filter = Builders<PlcTelemetryEnvelopeDocument>.Filter.Gte(item => item.IngestedAtUtc, startUtc.UtcDateTime) &
+                     Builders<PlcTelemetryEnvelopeDocument>.Filter.Lte(item => item.IngestedAtUtc, endUtc.UtcDateTime);
+
+        var documents = await collection
+            .Find(filter)
+            .SortBy(item => item.IngestedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        return documents.Select(document => document.ToDomain()).ToList();
+    }
+
     private sealed class PlcTelemetryEnvelopeDocument
     {
         [BsonId]
