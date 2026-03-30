@@ -27,10 +27,13 @@ public sealed class MongoFileArtifactMetadataRepository : IFileArtifactMetadataR
             cancellationToken: cancellationToken);
     }
 
-    public async Task<IReadOnlyCollection<FileArtifactMetadata>> ListAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyCollection<FileArtifactMetadata>> ListAsync(
+        FileArtifactSearchQuery query,
+        CancellationToken cancellationToken)
     {
+        var filter = BuildFilter(query);
         var documents = await collection
-            .Find(FilterDefinition<FileArtifactEnvelopeDocument>.Empty)
+            .Find(filter)
             .SortByDescending(document => document.TimestampUtc)
             .ToListAsync(cancellationToken);
 
@@ -44,6 +47,59 @@ public sealed class MongoFileArtifactMetadataRepository : IFileArtifactMetadataR
             .FirstOrDefaultAsync(cancellationToken);
 
         return document?.ToDomain();
+    }
+
+    public async Task<bool> DeleteAsync(string documentId, CancellationToken cancellationToken)
+    {
+        var result = await collection.DeleteOneAsync(item => item.DocumentId == documentId, cancellationToken);
+        return result.DeletedCount > 0;
+    }
+
+    private static FilterDefinition<FileArtifactEnvelopeDocument> BuildFilter(FileArtifactSearchQuery query)
+    {
+        var filters = new List<FilterDefinition<FileArtifactEnvelopeDocument>>();
+        var builder = Builders<FileArtifactEnvelopeDocument>.Filter;
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var escaped = System.Text.RegularExpressions.Regex.Escape(query.Search.Trim());
+            var regex = new BsonRegularExpression(escaped, "i");
+            filters.Add(
+                builder.Or(
+                    builder.Regex(item => item.Payload.OriginalFileName, regex),
+                    builder.Regex(item => item.Payload.FileName, regex),
+                    builder.Regex(item => item.Payload.Category, regex),
+                    builder.Regex(item => item.Payload.UseCase, regex),
+                    builder.Regex(item => item.Payload.UploadedBy, regex),
+                    builder.Regex(item => item.Payload.MimeType, regex)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.UseCase))
+        {
+            filters.Add(builder.Eq(item => item.Payload.UseCase, query.UseCase.Trim()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Category))
+        {
+            filters.Add(builder.Eq(item => item.Payload.Category, query.Category.Trim()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.UploadedBy))
+        {
+            filters.Add(builder.Eq(item => item.Payload.UploadedBy, query.UploadedBy.Trim()));
+        }
+
+        if (query.FromUtc.HasValue)
+        {
+            filters.Add(builder.Gte(item => item.TimestampUtc, query.FromUtc.Value.UtcDateTime));
+        }
+
+        if (query.ToUtc.HasValue)
+        {
+            filters.Add(builder.Lte(item => item.TimestampUtc, query.ToUtc.Value.UtcDateTime));
+        }
+
+        return filters.Count == 0 ? builder.Empty : builder.And(filters);
     }
 
     private sealed class FileArtifactEnvelopeDocument
@@ -98,6 +154,7 @@ public sealed class MongoFileArtifactMetadataRepository : IFileArtifactMetadataR
                 Payload.UploadedBy,
                 Payload.FileType,
                 Payload.MimeType,
+                Payload.UseCase,
                 Payload.Category,
                 Payload.SourceSystem,
                 new DateTimeOffset(TimestampUtc, TimeSpan.Zero));
@@ -139,6 +196,9 @@ public sealed class MongoFileArtifactMetadataRepository : IFileArtifactMetadataR
         [BsonElement("category")]
         public string? Category { get; set; }
 
+        [BsonElement("use_case")]
+        public string? UseCase { get; set; }
+
         [BsonElement("source_system")]
         public string SourceSystem { get; set; } = string.Empty;
 
@@ -156,6 +216,7 @@ public sealed class MongoFileArtifactMetadataRepository : IFileArtifactMetadataR
                 UploadedBy = payload.UploadedBy,
                 FileType = payload.FileType,
                 MimeType = payload.MimeType,
+                UseCase = payload.UseCase,
                 Category = payload.Category,
                 SourceSystem = payload.SourceSystem
             };

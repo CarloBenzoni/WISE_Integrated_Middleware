@@ -2,9 +2,7 @@ namespace Middleware.Domain.Entities;
 
 public sealed record PlcTelemetrySample(
     string PlcId,
-    double AxisPosition,
-    string MachineStatus,
-    int AlarmCode,
+    IReadOnlyDictionary<string, PlcTelemetryValue> Payload,
     DateTimeOffset SourceTimestampUtc,
     DateTimeOffset IngestedAtUtc)
 {
@@ -17,8 +15,6 @@ public sealed record PlcTelemetrySample(
             TimestampUtc: SourceTimestampUtc,
             IngestedAtUtc: IngestedAtUtc,
             Payload: new PlcTelemetryPayload(
-                AxisPosition,
-                MachineStatus,
-                AlarmCode));
+                new Dictionary<string, PlcTelemetryValue>(Payload, StringComparer.OrdinalIgnoreCase)));
     }
 }

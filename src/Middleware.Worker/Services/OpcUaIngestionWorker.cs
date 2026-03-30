@@ -25,11 +25,9 @@ public sealed class OpcUaIngestionWorker(
 
                 var sample = await ingestionService.IngestAsync(stoppingToken);
                 logger.LogInformation(
-                    "Sample persisted for PLC {PlcId}: AxisPosition={AxisPosition}, MachineStatus={MachineStatus}, AlarmCode={AlarmCode}, SourceTimestampUtc={SourceTimestampUtc}.",
+                    "Sample persisted for PLC {PlcId}: {VariableCount} variable(s), SourceTimestampUtc={SourceTimestampUtc}.",
                     sample.PlcId,
-                    sample.AxisPosition,
-                    sample.MachineStatus,
-                    sample.AlarmCode,
+                    sample.Payload.Count,
                     sample.SourceTimestampUtc);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

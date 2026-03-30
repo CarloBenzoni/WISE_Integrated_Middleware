@@ -10,6 +10,7 @@ public sealed record FileArtifactMetadata(
     string UserName,
     string FileType,
     string MimeType,
+    string? UseCase,
     string? Category,
     string SourceSystem,
     DateTimeOffset UploadDateUtc)
@@ -33,6 +34,7 @@ public sealed record FileArtifactMetadata(
                 UserName,
                 FileType,
                 MimeType,
+                UseCase,
                 Category,
                 SourceSystem));
     }

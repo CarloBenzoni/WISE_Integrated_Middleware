@@ -1,18 +1,15 @@
 using System.Globalization;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using Middleware.Application.Abstractions.Repositories;
 using Middleware.Domain.Entities;
-using Middleware.Infrastructure.Configuration;
 
 namespace Middleware.Api.Controllers;
 
 [ApiController]
 [Route("api/telemetry")]
 public sealed class TelemetryController(
-    IPlcTelemetrySampleRepository repository,
-    IOptions<MiddlewareOptions> options) : ControllerBase
+    IPlcTelemetrySampleRepository repository) : ControllerBase
 {
     private static readonly TimeSpan MaxRange = TimeSpan.FromDays(7);
 
@@ -20,7 +17,7 @@ public sealed class TelemetryController(
     public async Task<IActionResult> GetVariables(CancellationToken cancellationToken)
     {
         var latestSample = await repository.GetLatestAsync(cancellationToken);
-        return Ok(GetVariableDefinitions(latestSample, options.Value.OpcUa));
+        return Ok(GetVariableDefinitions(latestSample));
     }
 
     [HttpGet("series")]
@@ -42,7 +39,7 @@ public sealed class TelemetryController(
         }
 
         var latestSample = await repository.GetLatestAsync(cancellationToken);
-        var definition = GetVariableDefinitions(latestSample, options.Value.OpcUa)
+        var definition = GetVariableDefinitions(latestSample)
             .FirstOrDefault(item => string.Equals(item.Key, variableKey, StringComparison.OrdinalIgnoreCase));
 
         if (definition is null)
@@ -51,7 +48,11 @@ public sealed class TelemetryController(
         }
 
         var samples = await repository.QueryRangeAsync(range.StartUtc, range.EndUtc, cancellationToken);
-        var points = samples.Select(sample => MapPoint(sample, definition.Key)).ToList();
+        var points = samples
+            .Select(sample => MapPoint(sample, definition.Key))
+            .Where(point => point is not null)
+            .Cast<TelemetryDataPoint>()
+            .ToList();
 
         return Ok(new TelemetrySeriesResponse(
             Variable: definition,
@@ -80,7 +81,7 @@ public sealed class TelemetryController(
         }
 
         var latestSample = await repository.GetLatestAsync(cancellationToken);
-        var definition = GetVariableDefinitions(latestSample, options.Value.OpcUa)
+        var definition = GetVariableDefinitions(latestSample)
             .FirstOrDefault(item => string.Equals(item.Key, variableKey, StringComparison.OrdinalIgnoreCase));
 
         if (definition is null)
@@ -89,7 +90,11 @@ public sealed class TelemetryController(
         }
 
         var samples = await repository.QueryRangeAsync(range.StartUtc, range.EndUtc, cancellationToken);
-        var points = samples.Select(sample => MapPoint(sample, definition.Key)).ToList();
+        var points = samples
+            .Select(sample => MapPoint(sample, definition.Key))
+            .Where(point => point is not null)
+            .Cast<TelemetryDataPoint>()
+            .ToList();
 
         var builder = new StringBuilder();
         builder.AppendLine("timestamp_utc,raw_value,numeric_value");
@@ -108,73 +113,33 @@ public sealed class TelemetryController(
     }
 
     private static IReadOnlyCollection<TelemetryVariableDefinition> GetVariableDefinitions(
-        PlcTelemetrySample? latestSample,
-        OpcUaOptions options)
+        PlcTelemetrySample? latestSample)
     {
-        if (latestSample is not null)
+        if (latestSample is null)
         {
-            return
-            [
-                new TelemetryVariableDefinition(
-                    "axis_position",
-                    "axis_position",
-                    "number"),
-                new TelemetryVariableDefinition(
-                    "machine_status",
-                    "machine_status",
-                    bool.TryParse(latestSample.MachineStatus, out _) ? "boolean" : "string"),
-                new TelemetryVariableDefinition(
-                    "alarm_code",
-                    "alarm_code",
-                    "number")
-            ];
+            return Array.Empty<TelemetryVariableDefinition>();
         }
 
-        return
-        [
-            new TelemetryVariableDefinition(
-                "axis_position",
-                options.BrowseNames.AxisPositionBrowseName,
-                "number"),
-            new TelemetryVariableDefinition(
-                "machine_status",
-                options.BrowseNames.MachineStatusBrowseName,
-                "boolean"),
-            new TelemetryVariableDefinition(
-                "alarm_code",
-                options.BrowseNames.AlarmCodeBrowseName,
-                "number")
-        ];
+        return latestSample.Payload
+            .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(item => new TelemetryVariableDefinition(
+                item.Key,
+                item.Key,
+                item.Value.ValueType))
+            .ToList();
     }
 
-    private static TelemetryDataPoint MapPoint(PlcTelemetrySample sample, string variableKey)
+    private static TelemetryDataPoint? MapPoint(PlcTelemetrySample sample, string variableKey)
     {
-        return variableKey switch
+        if (!sample.Payload.TryGetValue(variableKey, out var value))
         {
-            "axis_position" => new TelemetryDataPoint(
-                sample.IngestedAtUtc,
-                sample.AxisPosition.ToString(CultureInfo.InvariantCulture),
-                sample.AxisPosition),
-            "machine_status" => new TelemetryDataPoint(
-                sample.IngestedAtUtc,
-                sample.MachineStatus,
-                TryConvertBoolean(sample.MachineStatus)),
-            "alarm_code" => new TelemetryDataPoint(
-                sample.IngestedAtUtc,
-                sample.AlarmCode.ToString(CultureInfo.InvariantCulture),
-                sample.AlarmCode),
-            _ => throw new InvalidOperationException($"Unsupported variable key: {variableKey}")
-        };
-    }
-
-    private static double? TryConvertBoolean(string value)
-    {
-        if (bool.TryParse(value, out var boolValue))
-        {
-            return boolValue ? 1d : 0d;
+            return null;
         }
 
-        return null;
+        return new TelemetryDataPoint(
+            sample.IngestedAtUtc,
+            value.RawValue,
+            value.NumericValue);
     }
 
     private static TimeRange? NormalizeRange(DateTimeOffset? startUtc, DateTimeOffset? endUtc)

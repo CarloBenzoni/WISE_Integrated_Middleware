@@ -11,5 +11,6 @@ public sealed record FileArtifactPayload(
     string UploadedBy,
     string FileType,
     string MimeType,
+    string? UseCase,
     string? Category,
     string SourceSystem);

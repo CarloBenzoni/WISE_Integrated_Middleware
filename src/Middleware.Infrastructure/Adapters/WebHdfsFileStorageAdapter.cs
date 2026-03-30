@@ -24,7 +24,11 @@ public sealed class WebHdfsFileStorageAdapter(
         var fileInfo = new FileInfo(request.LocalFilePath);
         var documentId = Guid.NewGuid().ToString("N");
         var storedFileName = BuildStoredFileName(documentId, request.OriginalFileName);
-        var hdfsPath = CombineHdfsPath(storageOptions.HdfsFolderPath, storedFileName);
+        var hdfsPath = BuildDocumentStoragePath(
+            storageOptions.HdfsFolderPath,
+            request.UseCase,
+            request.Category,
+            storedFileName);
         var client = httpClientFactory.CreateClient("webhdfs");
 
         if (HasDirectDataNodeUpload(storageOptions))
@@ -87,6 +91,7 @@ public sealed class WebHdfsFileStorageAdapter(
             UserName: request.UploadedBy,
             FileType: fileInfo.Extension,
             MimeType: string.IsNullOrWhiteSpace(request.MimeType) ? "application/octet-stream" : request.MimeType,
+            UseCase: string.IsNullOrWhiteSpace(request.UseCase) ? "General" : request.UseCase.Trim(),
             Category: string.IsNullOrWhiteSpace(request.Category) ? null : request.Category,
             SourceSystem: string.IsNullOrWhiteSpace(request.SourceSystem) ? "unknown" : request.SourceSystem,
             UploadDateUtc: DateTimeOffset.UtcNow);
@@ -128,6 +133,35 @@ public sealed class WebHdfsFileStorageAdapter(
             Content: content);
     }
 
+    public async Task DeleteFileAsync(
+        FileArtifactMetadata metadata,
+        CancellationToken cancellationToken)
+    {
+        var storageOptions = options.Value.Storage;
+        var client = httpClientFactory.CreateClient("webhdfs");
+        var deleteUri = BuildDeleteUri(storageOptions, metadata.StoragePath);
+        logger.LogInformation("WebHDFS delete request for {DocumentId}: {DeleteUri}", metadata.DocumentId, deleteUri);
+
+        using var response = await client.DeleteAsync(deleteUri, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            throw new FileNotFoundException($"Document not found in HDFS: {metadata.StoragePath}");
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new InvalidOperationException(
+                $"WebHDFS delete failed for {metadata.StoragePath}: {(int)response.StatusCode} {body}");
+        }
+
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (payload.Contains("false", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new FileNotFoundException($"Document not found in HDFS: {metadata.StoragePath}");
+        }
+    }
+
     private static Uri BuildCreateUri(StorageOptions options, string hdfsPath, bool overwrite)
     {
         var normalizedBaseUrl = NormalizeWebHdfsBaseUrl(options.WebHdfsBaseUrl);
@@ -141,6 +175,14 @@ public sealed class WebHdfsFileStorageAdapter(
         var normalizedBaseUrl = NormalizeWebHdfsBaseUrl(options.WebHdfsBaseUrl);
         var normalizedPath = hdfsPath.TrimStart('/');
         var uri = $"{normalizedBaseUrl}/webhdfs/v1/{normalizedPath}?op=OPEN&user.name={Uri.EscapeDataString(options.HdfsUser)}";
+        return new Uri(uri);
+    }
+
+    private static Uri BuildDeleteUri(StorageOptions options, string hdfsPath)
+    {
+        var normalizedBaseUrl = NormalizeWebHdfsBaseUrl(options.WebHdfsBaseUrl);
+        var normalizedPath = hdfsPath.TrimStart('/');
+        var uri = $"{normalizedBaseUrl}/webhdfs/v1/{normalizedPath}?op=DELETE&user.name={Uri.EscapeDataString(options.HdfsUser)}&recursive=false";
         return new Uri(uri);
     }
 
@@ -261,9 +303,25 @@ public sealed class WebHdfsFileStorageAdapter(
         return $"{documentId}_{safeFileName}";
     }
 
-    private static string CombineHdfsPath(string folderPath, string fileName)
+    private static string BuildDocumentStoragePath(string baseFolderPath, string? useCase, string? category, string fileName)
     {
-        var normalizedFolder = folderPath.Replace("\\", "/").TrimEnd('/');
-        return $"{normalizedFolder}/{fileName}";
+        var normalizedFolder = baseFolderPath.Replace("\\", "/").TrimEnd('/');
+        var useCaseSegment = SanitizeSegment(useCase, "General");
+        var categorySegment = SanitizeSegment(category, "Uncategorized");
+        return $"{normalizedFolder}/{useCaseSegment}/{categorySegment}/{fileName}";
+    }
+
+    private static string SanitizeSegment(string? value, string fallback)
+    {
+        var candidate = string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var sanitized = new string(candidate
+            .Select(character => invalidChars.Contains(character) || character == '/' || character == '\\'
+                ? '-'
+                : character)
+            .ToArray());
+
+        sanitized = sanitized.Replace(' ', '-');
+        return string.IsNullOrWhiteSpace(sanitized) ? fallback : sanitized;
     }
 }

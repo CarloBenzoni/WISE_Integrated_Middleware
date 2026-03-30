@@ -4,6 +4,7 @@ using Middleware.Domain.Entities;
 using Middleware.Infrastructure.Configuration;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using MongoDB.Bson.Serialization.Options;
 using MongoDB.Driver;
 
 namespace Middleware.Infrastructure.Repositories;
@@ -22,14 +23,16 @@ public sealed class MongoPlcTelemetrySampleRepository : IPlcTelemetrySampleRepos
 
     public async Task InsertAsync(PlcTelemetrySample sample, CancellationToken cancellationToken)
     {
-        await collection.InsertOneAsync(PlcTelemetryEnvelopeDocument.FromDomain(sample.ToEnvelope()), cancellationToken: cancellationToken);
+        await collection.InsertOneAsync(
+            PlcTelemetryEnvelopeDocument.FromDomain(sample.ToEnvelope()),
+            cancellationToken: cancellationToken);
     }
 
     public async Task<PlcTelemetrySample?> GetLatestAsync(CancellationToken cancellationToken)
     {
         var document = await collection
             .Find(FilterDefinition<PlcTelemetryEnvelopeDocument>.Empty)
-            .SortByDescending(item => item.TimestampUtc)
+            .SortByDescending(item => item.IngestedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
         return document?.ToDomain();
@@ -91,9 +94,7 @@ public sealed class MongoPlcTelemetrySampleRepository : IPlcTelemetrySampleRepos
         {
             return new PlcTelemetrySample(
                 PlcId: SourceId,
-                AxisPosition: Payload.AxisPosition,
-                MachineStatus: Payload.MachineStatus,
-                AlarmCode: Payload.AlarmCode,
+                Payload: Payload.ToDomain().Variables,
                 SourceTimestampUtc: new DateTimeOffset(DateTime.SpecifyKind(TimestampUtc, DateTimeKind.Utc)),
                 IngestedAtUtc: new DateTimeOffset(DateTime.SpecifyKind(IngestedAtUtc, DateTimeKind.Utc)));
         }
@@ -101,23 +102,99 @@ public sealed class MongoPlcTelemetrySampleRepository : IPlcTelemetrySampleRepos
 
     private sealed class PlcTelemetryPayloadDocument
     {
+        [BsonElement("variables")]
+        [BsonDictionaryOptions(DictionaryRepresentation.Document)]
+        public Dictionary<string, PlcTelemetryValueDocument> Variables { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
         [BsonElement("axis_position")]
-        public double AxisPosition { get; set; }
+        [BsonIgnoreIfNull]
+        public double? LegacyAxisPosition { get; set; }
 
         [BsonElement("machine_status")]
-        public string MachineStatus { get; set; } = string.Empty;
+        [BsonIgnoreIfNull]
+        public string? LegacyMachineStatus { get; set; }
 
         [BsonElement("alarm_code")]
-        public int AlarmCode { get; set; }
+        [BsonIgnoreIfNull]
+        public int? LegacyAlarmCode { get; set; }
 
         public static PlcTelemetryPayloadDocument FromDomain(PlcTelemetryPayload payload)
         {
             return new PlcTelemetryPayloadDocument
             {
-                AxisPosition = payload.AxisPosition,
-                MachineStatus = payload.MachineStatus,
-                AlarmCode = payload.AlarmCode
+                Variables = payload.Variables.ToDictionary(
+                    item => item.Key,
+                    item => PlcTelemetryValueDocument.FromDomain(item.Value),
+                    StringComparer.OrdinalIgnoreCase)
             };
+        }
+
+        public PlcTelemetryPayload ToDomain()
+        {
+            if (Variables.Count == 0)
+            {
+                var legacyVariables = new Dictionary<string, PlcTelemetryValue>(StringComparer.OrdinalIgnoreCase);
+
+                if (LegacyAxisPosition.HasValue)
+                {
+                    legacyVariables["axis_position"] = new PlcTelemetryValue(
+                        LegacyAxisPosition.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        LegacyAxisPosition.Value,
+                        "number");
+                }
+
+                if (!string.IsNullOrWhiteSpace(LegacyMachineStatus))
+                {
+                    legacyVariables["machine_status"] = new PlcTelemetryValue(
+                        LegacyMachineStatus,
+                        bool.TryParse(LegacyMachineStatus, out var boolValue) ? (boolValue ? 1d : 0d) : null,
+                        bool.TryParse(LegacyMachineStatus, out _) ? "boolean" : "string");
+                }
+
+                if (LegacyAlarmCode.HasValue)
+                {
+                    legacyVariables["alarm_code"] = new PlcTelemetryValue(
+                        LegacyAlarmCode.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        LegacyAlarmCode.Value,
+                        "number");
+                }
+
+                return new PlcTelemetryPayload(legacyVariables);
+            }
+
+            return new PlcTelemetryPayload(
+                Variables.ToDictionary(
+                    item => item.Key,
+                    item => item.Value.ToDomain(),
+                    StringComparer.OrdinalIgnoreCase));
+        }
+    }
+
+    private sealed class PlcTelemetryValueDocument
+    {
+        [BsonElement("raw_value")]
+        public string RawValue { get; set; } = string.Empty;
+
+        [BsonElement("numeric_value")]
+        [BsonIgnoreIfNull]
+        public double? NumericValue { get; set; }
+
+        [BsonElement("value_type")]
+        public string ValueType { get; set; } = "string";
+
+        public static PlcTelemetryValueDocument FromDomain(PlcTelemetryValue value)
+        {
+            return new PlcTelemetryValueDocument
+            {
+                RawValue = value.RawValue,
+                NumericValue = value.NumericValue,
+                ValueType = value.ValueType
+            };
+        }
+
+        public PlcTelemetryValue ToDomain()
+        {
+            return new PlcTelemetryValue(RawValue, NumericValue, ValueType);
         }
     }
 }

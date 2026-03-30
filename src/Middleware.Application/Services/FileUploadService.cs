@@ -42,15 +42,16 @@ public sealed class FileUploadService(
             OriginalFileName: Path.GetFileName(file),
             UploadedBy: userName,
             MimeType: "application/octet-stream",
+            UseCase: "General",
             Category: "batch-upload",
             SourceSystem: "worker"));
 
         return await UploadFilesAsync(requests, cancellationToken);
     }
 
-    public Task<IReadOnlyCollection<FileArtifactMetadata>> ListAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyCollection<FileArtifactMetadata>> ListAsync(FileArtifactSearchQuery query, CancellationToken cancellationToken)
     {
-        return metadataRepository.ListAsync(cancellationToken);
+        return metadataRepository.ListAsync(query, cancellationToken);
     }
 
     public Task<FileArtifactMetadata?> GetByDocumentIdAsync(string documentId, CancellationToken cancellationToken)
@@ -67,5 +68,32 @@ public sealed class FileUploadService(
         }
 
         return await fileStorageAdapter.DownloadFileAsync(metadata, cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<StoredFileContent>> DownloadManyAsync(
+        IEnumerable<string> documentIds,
+        CancellationToken cancellationToken)
+    {
+        var files = new List<StoredFileContent>();
+
+        foreach (var documentId in documentIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            files.Add(await DownloadAsync(documentId, cancellationToken));
+        }
+
+        return files;
+    }
+
+    public async Task<bool> DeleteAsync(string documentId, CancellationToken cancellationToken)
+    {
+        var metadata = await metadataRepository.GetByDocumentIdAsync(documentId, cancellationToken);
+        if (metadata is null)
+        {
+            return false;
+        }
+
+        await fileStorageAdapter.DeleteFileAsync(metadata, cancellationToken);
+        return await metadataRepository.DeleteAsync(documentId, cancellationToken);
     }
 }

@@ -16,104 +16,40 @@ public sealed class OpcUaAdapter(
 {
     private readonly OpcUaOptions opcUaOptions = options.Value.OpcUa;
     private readonly SemaphoreSlim connectionLock = new(1, 1);
+    private readonly SemaphoreSlim discoveryLock = new(1, 1);
     private readonly object reconnectSync = new();
     private ApplicationConfiguration? configuration;
     private Session? session;
     private SessionReconnectHandler? reconnectHandler;
+    private IReadOnlyList<ResolvedTelemetryNode>? cachedTelemetryNodes;
     private bool disposed;
 
     public async Task<PlcTelemetrySample> ReadCurrentSampleAsync(CancellationToken cancellationToken)
     {
         await EnsureConnectedAsync(cancellationToken);
 
-        var nodeIds = await ResolveTelemetryNodeIdsAsync(cancellationToken);
+        var telemetryNodes = await ResolveTelemetryNodesAsync(forceRefresh: false, cancellationToken);
+        var sample = await ReadSampleAsync(telemetryNodes, cancellationToken);
 
-        var nodesToRead = new ReadValueIdCollection(nodeIds.Select(nodeId => new ReadValueId
+        if (sample is null)
         {
-            NodeId = nodeId,
-            AttributeId = Attributes.Value
-        }));
-
-        var response = await session!.ReadAsync(
-            null,
-            0,
-            TimestampsToReturn.Both,
-            nodesToRead,
-            cancellationToken);
-
-        ValidateReadResult(nodeIds[0], response.Results[0].StatusCode);
-        ValidateReadResult(nodeIds[1], response.Results[1].StatusCode);
-        ValidateReadResult(nodeIds[2], response.Results[2].StatusCode);
-
-        var axisPosition = Convert.ToDouble(response.Results[0].Value, CultureInfo.InvariantCulture);
-        var machineStatus = Convert.ToString(response.Results[1].Value, CultureInfo.InvariantCulture) ?? string.Empty;
-        var alarmCode = Convert.ToInt32(response.Results[2].Value, CultureInfo.InvariantCulture);
-
-        var sourceTimestamp = new[]
-        {
-            response.Results[0].SourceTimestamp,
-            response.Results[1].SourceTimestamp,
-            response.Results[2].SourceTimestamp
+            telemetryNodes = await ResolveTelemetryNodesAsync(forceRefresh: true, cancellationToken);
+            sample = await ReadSampleAsync(telemetryNodes, cancellationToken);
         }
-        .Where(timestamp => timestamp != DateTime.MinValue)
-        .Select(timestamp => new DateTimeOffset(DateTime.SpecifyKind(timestamp, DateTimeKind.Utc)))
-        .DefaultIfEmpty(DateTimeOffset.UtcNow)
-        .Max();
 
-        var sample = new PlcTelemetrySample(
-            PlcId: opcUaOptions.PlcId,
-            AxisPosition: axisPosition,
-            MachineStatus: machineStatus,
-            AlarmCode: alarmCode,
-            SourceTimestampUtc: sourceTimestamp,
-            IngestedAtUtc: DateTimeOffset.UtcNow);
+        if (sample is null)
+        {
+            throw new InvalidOperationException(
+                $"Unable to read any OPC UA variables under {opcUaOptions.DiscoveryRootNodeId} for PLC {opcUaOptions.PlcId}.");
+        }
 
         logger.LogInformation(
-            "OPC UA sample read from {PlcId}: AxisPosition={AxisPosition}, MachineStatus={MachineStatus}, AlarmCode={AlarmCode}.",
+            "OPC UA sample read from {PlcId}: {VariableCount} variable(s) persisted [{VariableKeys}].",
             sample.PlcId,
-            sample.AxisPosition,
-            sample.MachineStatus,
-            sample.AlarmCode);
+            sample.Payload.Count,
+            string.Join(", ", sample.Payload.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase)));
 
         return sample;
-    }
-
-    private async Task<string[]> ResolveTelemetryNodeIdsAsync(CancellationToken cancellationToken)
-    {
-        if (HasExplicitNodeMappings())
-        {
-            return
-            [
-                opcUaOptions.Nodes.AxisPositionNodeId,
-                opcUaOptions.Nodes.MachineStatusNodeId,
-                opcUaOptions.Nodes.AlarmCodeNodeId
-            ];
-        }
-
-        var discoveredNodes = await DiscoverVariableNodesAsync(
-            opcUaOptions.DiscoveryRootNodeId,
-            opcUaOptions.RecursiveBrowse,
-            cancellationToken);
-
-        var axisPositionNodeId = FindNodeIdByName(discoveredNodes, opcUaOptions.BrowseNames.AxisPositionBrowseName);
-        var machineStatusNodeId = FindNodeIdByName(discoveredNodes, opcUaOptions.BrowseNames.MachineStatusBrowseName);
-        var alarmCodeNodeId = FindNodeIdByName(discoveredNodes, opcUaOptions.BrowseNames.AlarmCodeBrowseName);
-
-        if (axisPositionNodeId is null || machineStatusNodeId is null || alarmCodeNodeId is null)
-        {
-            var discoveredNames = string.Join(", ", discoveredNodes.Select(node => node.DisplayName));
-            throw new InvalidOperationException(
-                $"Unable to resolve required OPC UA nodes under {opcUaOptions.DiscoveryRootNodeId}. Discovered nodes: {discoveredNames}.");
-        }
-
-        logger.LogInformation(
-            "Resolved OPC UA telemetry nodes via discovery root {DiscoveryRootNodeId}: AxisPosition={AxisPositionNodeId}, MachineStatus={MachineStatusNodeId}, AlarmCode={AlarmCodeNodeId}.",
-            opcUaOptions.DiscoveryRootNodeId,
-            axisPositionNodeId,
-            machineStatusNodeId,
-            alarmCodeNodeId);
-
-        return [axisPositionNodeId, machineStatusNodeId, alarmCodeNodeId];
     }
 
     public async ValueTask DisposeAsync()
@@ -126,6 +62,7 @@ public sealed class OpcUaAdapter(
         disposed = true;
         reconnectHandler?.Dispose();
         connectionLock.Dispose();
+        discoveryLock.Dispose();
 
         if (session is not null)
         {
@@ -184,6 +121,7 @@ public sealed class OpcUaAdapter(
                 cancellationToken);
 
             session.KeepAlive += OnKeepAlive;
+            cachedTelemetryNodes = null;
 
             logger.LogInformation(
                 "Connected to OPC UA endpoint {EndpointUrl} for PLC {PlcId}.",
@@ -298,6 +236,7 @@ public sealed class OpcUaAdapter(
             if (reconnectHandler?.Session is Session reconnectedSession)
             {
                 session = reconnectedSession;
+                cachedTelemetryNodes = null;
                 logger.LogInformation("OPC UA session reconnected for PLC {PlcId}.", opcUaOptions.PlcId);
             }
 
@@ -322,22 +261,120 @@ public sealed class OpcUaAdapter(
         return new UserIdentity(new AnonymousIdentityToken());
     }
 
-    private static void ValidateReadResult(string nodeId, StatusCode statusCode)
+    private async Task<IReadOnlyList<ResolvedTelemetryNode>> ResolveTelemetryNodesAsync(
+        bool forceRefresh,
+        CancellationToken cancellationToken)
     {
-        if (StatusCode.IsBad(statusCode))
+        if (!forceRefresh && cachedTelemetryNodes is { Count: > 0 })
         {
-            throw new InvalidOperationException($"OPC UA read failed for node {nodeId}: {statusCode}.");
+            return cachedTelemetryNodes;
+        }
+
+        await discoveryLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!forceRefresh && cachedTelemetryNodes is { Count: > 0 })
+            {
+                return cachedTelemetryNodes;
+            }
+
+            var discoveredNodes = await DiscoverVariableNodesAsync(
+                opcUaOptions.DiscoveryRootNodeId,
+                opcUaOptions.RecursiveBrowse,
+                cancellationToken);
+
+            if (discoveredNodes.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"No OPC UA variables discovered under {opcUaOptions.DiscoveryRootNodeId}.");
+            }
+
+            cachedTelemetryNodes = discoveredNodes;
+
+            logger.LogInformation(
+                "Resolved {VariableCount} OPC UA variable node(s) via discovery root {DiscoveryRootNodeId}: {VariableKeys}.",
+                discoveredNodes.Count,
+                opcUaOptions.DiscoveryRootNodeId,
+                string.Join(", ", discoveredNodes.Select(node => node.PayloadKey)));
+
+            return cachedTelemetryNodes;
+        }
+        finally
+        {
+            discoveryLock.Release();
         }
     }
 
-    private bool HasExplicitNodeMappings()
+    private async Task<PlcTelemetrySample?> ReadSampleAsync(
+        IReadOnlyList<ResolvedTelemetryNode> telemetryNodes,
+        CancellationToken cancellationToken)
     {
-        return !string.IsNullOrWhiteSpace(opcUaOptions.Nodes.AxisPositionNodeId) &&
-               !string.IsNullOrWhiteSpace(opcUaOptions.Nodes.MachineStatusNodeId) &&
-               !string.IsNullOrWhiteSpace(opcUaOptions.Nodes.AlarmCodeNodeId);
+        var nodesToRead = new ReadValueIdCollection(telemetryNodes.Select(node => new ReadValueId
+        {
+            NodeId = node.NodeId,
+            AttributeId = Attributes.Value
+        }));
+
+        var response = await session!.ReadAsync(
+            null,
+            0,
+            TimestampsToReturn.Both,
+            nodesToRead,
+            cancellationToken);
+
+        var payload = new Dictionary<string, PlcTelemetryValue>(StringComparer.OrdinalIgnoreCase);
+        var sourceTimestamps = new List<DateTimeOffset>();
+        var staleTopologyDetected = false;
+
+        for (var index = 0; index < telemetryNodes.Count; index++)
+        {
+            var node = telemetryNodes[index];
+            var result = response.Results[index];
+
+            if (StatusCode.IsBad(result.StatusCode))
+            {
+                if (IndicatesStaleNode(result.StatusCode))
+                {
+                    staleTopologyDetected = true;
+                }
+
+                logger.LogWarning(
+                    "Skipping OPC UA node {PayloadKey} ({NodeId}) because read status is {StatusCode}.",
+                    node.PayloadKey,
+                    node.NodeId,
+                    result.StatusCode);
+                continue;
+            }
+
+            payload[node.PayloadKey] = ConvertValue(result.Value);
+
+            if (result.SourceTimestamp != DateTime.MinValue)
+            {
+                sourceTimestamps.Add(
+                    new DateTimeOffset(DateTime.SpecifyKind(result.SourceTimestamp, DateTimeKind.Utc)));
+            }
+        }
+
+        if (staleTopologyDetected)
+        {
+            cachedTelemetryNodes = null;
+            return null;
+        }
+
+        if (payload.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"OPC UA read returned no valid variables for PLC {opcUaOptions.PlcId}.");
+        }
+
+        return new PlcTelemetrySample(
+            PlcId: opcUaOptions.PlcId,
+            Payload: payload,
+            SourceTimestampUtc: sourceTimestamps.DefaultIfEmpty(DateTimeOffset.UtcNow).Max(),
+            IngestedAtUtc: DateTimeOffset.UtcNow);
     }
 
-    private async Task<List<DiscoveredNode>> DiscoverVariableNodesAsync(
+    private async Task<List<ResolvedTelemetryNode>> DiscoverVariableNodesAsync(
         string rootNodeIdString,
         bool recursive,
         CancellationToken cancellationToken)
@@ -345,7 +382,8 @@ public sealed class OpcUaAdapter(
         var rootNodeId = NodeId.Parse(rootNodeIdString);
         var queue = new Queue<NodeId>();
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var variables = new List<DiscoveredNode>();
+        var variables = new List<ResolvedTelemetryNode>();
+        var usedKeys = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         queue.Enqueue(rootNodeId);
         visited.Add(rootNodeId.ToString());
@@ -366,9 +404,12 @@ public sealed class OpcUaAdapter(
 
                 if (reference.NodeClass == NodeClass.Variable)
                 {
-                    variables.Add(new DiscoveredNode(
-                        childNodeId.ToString(),
-                        reference.DisplayName?.Text ?? reference.BrowseName?.Name ?? childNodeId.ToString()));
+                    var baseKey = NormalizePayloadKey(
+                        reference.BrowseName?.Name ??
+                        reference.DisplayName?.Text ??
+                        childNodeId.ToString());
+                    var payloadKey = BuildUniquePayloadKey(baseKey, usedKeys);
+                    variables.Add(new ResolvedTelemetryNode(childNodeId.ToString(), payloadKey));
                 }
 
                 if (recursive &&
@@ -432,12 +473,120 @@ public sealed class OpcUaAdapter(
         return references;
     }
 
-    private static string? FindNodeIdByName(IEnumerable<DiscoveredNode> discoveredNodes, string expectedName)
+    private static PlcTelemetryValue ConvertValue(object? value)
     {
-        return discoveredNodes
-            .FirstOrDefault(node => string.Equals(node.DisplayName, expectedName, StringComparison.OrdinalIgnoreCase))
-            ?.NodeId;
+        if (value is null)
+        {
+            return new PlcTelemetryValue(string.Empty, null, "null");
+        }
+
+        if (value is bool boolValue)
+        {
+            return new PlcTelemetryValue(
+                boolValue.ToString(),
+                boolValue ? 1d : 0d,
+                "boolean");
+        }
+
+        if (TryConvertToDouble(value, out var numericValue))
+        {
+            return new PlcTelemetryValue(
+                numericValue.ToString(CultureInfo.InvariantCulture),
+                numericValue,
+                "number");
+        }
+
+        if (value is byte[] bytes)
+        {
+            return new PlcTelemetryValue(Convert.ToBase64String(bytes), null, "binary");
+        }
+
+        return new PlcTelemetryValue(
+            Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
+            null,
+            "string");
     }
 
-    private sealed record DiscoveredNode(string NodeId, string DisplayName);
+    private static bool TryConvertToDouble(object value, out double numericValue)
+    {
+        switch (value)
+        {
+            case sbyte sbyteValue:
+                numericValue = sbyteValue;
+                return true;
+            case byte byteValue:
+                numericValue = byteValue;
+                return true;
+            case short shortValue:
+                numericValue = shortValue;
+                return true;
+            case ushort ushortValue:
+                numericValue = ushortValue;
+                return true;
+            case int intValue:
+                numericValue = intValue;
+                return true;
+            case uint uintValue:
+                numericValue = uintValue;
+                return true;
+            case long longValue:
+                numericValue = longValue;
+                return true;
+            case ulong ulongValue:
+                numericValue = ulongValue;
+                return true;
+            case float floatValue:
+                numericValue = floatValue;
+                return true;
+            case double doubleValue:
+                numericValue = doubleValue;
+                return true;
+            case decimal decimalValue:
+                numericValue = (double)decimalValue;
+                return true;
+            default:
+                numericValue = default;
+                return false;
+        }
+    }
+
+    private static bool IndicatesStaleNode(StatusCode statusCode)
+    {
+        return statusCode == StatusCodes.BadNodeIdUnknown ||
+               statusCode == StatusCodes.BadNodeIdInvalid ||
+               statusCode == StatusCodes.BadNoMatch;
+    }
+
+    private static string NormalizePayloadKey(string value)
+    {
+        var characters = value
+            .Trim()
+            .Select(character => char.IsLetterOrDigit(character) || character == '_' || character == '-'
+                ? character
+                : '_')
+            .ToArray();
+
+        var normalized = new string(characters).Trim('_');
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "variable";
+        }
+
+        return normalized.StartsWith('$') ? $"var_{normalized.TrimStart('$')}" : normalized;
+    }
+
+    private static string BuildUniquePayloadKey(string baseKey, IDictionary<string, int> usedKeys)
+    {
+        if (!usedKeys.TryGetValue(baseKey, out var count))
+        {
+            usedKeys[baseKey] = 1;
+            return baseKey;
+        }
+
+        count++;
+        usedKeys[baseKey] = count;
+        return $"{baseKey}_{count}";
+    }
+
+    private sealed record ResolvedTelemetryNode(string NodeId, string PayloadKey);
 }

@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using Microsoft.AspNetCore.Mvc;
 using Middleware.Application.Services;
 using Middleware.Domain.Entities;
@@ -9,9 +10,18 @@ namespace Middleware.Api.Controllers;
 public sealed class DocumentsController(FileUploadService fileUploadService) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken cancellationToken)
+    public async Task<IActionResult> List(
+        [FromQuery] string? search,
+        [FromQuery] string? useCase,
+        [FromQuery] string? category,
+        [FromQuery] string? uploadedBy,
+        [FromQuery] DateTimeOffset? fromUtc,
+        [FromQuery] DateTimeOffset? toUtc,
+        CancellationToken cancellationToken)
     {
-        var documents = await fileUploadService.ListAsync(cancellationToken);
+        var documents = await fileUploadService.ListAsync(
+            new FileArtifactSearchQuery(search, useCase, category, uploadedBy, fromUtc, toUtc),
+            cancellationToken);
         return Ok(documents.Select(MapResponse));
     }
 
@@ -41,6 +51,57 @@ public sealed class DocumentsController(FileUploadService fileUploadService) : C
         }
     }
 
+    [HttpDelete("{documentId}")]
+    public async Task<IActionResult> Delete(string documentId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var deleted = await fileUploadService.DeleteAsync(documentId, cancellationToken);
+            if (!deleted)
+            {
+                return NotFound(new { message = $"Document not found: {documentId}" });
+            }
+
+            return NoContent();
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound(new { message = $"Document not found: {documentId}" });
+        }
+    }
+
+    [HttpPost("download-zip")]
+    public async Task<IActionResult> DownloadZip(
+        [FromBody] DocumentZipDownloadRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.DocumentIds is null || request.DocumentIds.Count == 0)
+        {
+            return BadRequest(new { message = "At least one documentId is required." });
+        }
+
+        var files = await fileUploadService.DownloadManyAsync(request.DocumentIds, cancellationToken);
+        if (files.Count == 0)
+        {
+            return NotFound(new { message = "No documents found for zip download." });
+        }
+
+        await using var memoryStream = new MemoryStream();
+        using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var file in files)
+            {
+                var entry = archive.CreateEntry(file.FileName, CompressionLevel.Fastest);
+                await using var entryStream = entry.Open();
+                await entryStream.WriteAsync(file.Content, cancellationToken);
+            }
+        }
+
+        memoryStream.Position = 0;
+        var fileName = $"wise_documents_{DateTime.UtcNow:yyyyMMddHHmmss}.zip";
+        return File(memoryStream.ToArray(), "application/zip", fileName);
+    }
+
     [HttpPost("upload")]
     [RequestFormLimits(MultipartBodyLengthLimit = 268435456)]
     [RequestSizeLimit(268435456)]
@@ -56,6 +117,11 @@ public sealed class DocumentsController(FileUploadService fileUploadService) : C
         if (string.IsNullOrWhiteSpace(request.UploadedBy))
         {
             return BadRequest(new { message = "uploadedBy is required." });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.UseCase))
+        {
+            return BadRequest(new { message = "useCase is required." });
         }
 
         var tempDirectory = Path.Combine(Path.GetTempPath(), "wise-document-repository");
@@ -89,6 +155,7 @@ public sealed class DocumentsController(FileUploadService fileUploadService) : C
                     OriginalFileName: file.FileName,
                     UploadedBy: request.UploadedBy,
                     MimeType: file.ContentType,
+                    UseCase: request.UseCase,
                     Category: request.Category,
                     SourceSystem: string.IsNullOrWhiteSpace(request.SourceSystem)
                         ? "hmi_wise_ddg"
@@ -120,6 +187,7 @@ public sealed class DocumentsController(FileUploadService fileUploadService) : C
             metadata.Size,
             metadata.FileType,
             metadata.MimeType,
+            metadata.UseCase,
             metadata.Category,
             metadata.SourceSystem,
             metadata.UserName,
@@ -129,9 +197,12 @@ public sealed class DocumentsController(FileUploadService fileUploadService) : C
 
 public sealed record DocumentUploadRequest(
     string UploadedBy,
+    string UseCase,
     string? Category,
     string? SourceSystem,
     List<IFormFile> Files);
+
+public sealed record DocumentZipDownloadRequest(List<string> DocumentIds);
 
 public sealed record DocumentResponse(
     string DocumentId,
@@ -141,6 +212,7 @@ public sealed record DocumentResponse(
     long Size,
     string FileType,
     string MimeType,
+    string? UseCase,
     string? Category,
     string SourceSystem,
     string UploadedBy,
