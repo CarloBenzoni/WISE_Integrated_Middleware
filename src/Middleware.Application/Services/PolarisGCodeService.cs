@@ -53,4 +53,29 @@ public sealed class PolarisGCodeService(IPolarisGCodeAdapter polarisGCodeAdapter
             RemoteDirectory: remoteDirectory,
             ExecutedAtUtc: DateTimeOffset.UtcNow);
     }
+
+    public async Task<PolarisAxisCommandResult> EnableAxisAsync(
+        string axisName,
+        string serverIpAddress,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(axisName))
+        {
+            throw new ArgumentException("Axis name is required.", nameof(axisName));
+        }
+
+        var axisNumber = await polarisGCodeAdapter.EnableAxisAsync(axisName, cancellationToken);
+
+        return new PolarisAxisCommandResult(
+            ServerIpAddress: serverIpAddress,
+            AxisName: axisName,
+            AxisNumber: axisNumber,
+            Command: "enable-axis",
+            ExecutedAtUtc: DateTimeOffset.UtcNow);
+    }
+
+    public Task<PolarisGCodeStatusResult> ReadStatusAsync(CancellationToken cancellationToken)
+    {
+        return polarisGCodeAdapter.ReadGCodeStatusAsync(cancellationToken);
+    }
 }

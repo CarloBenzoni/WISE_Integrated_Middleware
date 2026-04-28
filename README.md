@@ -27,6 +27,12 @@ Il middleware resta intenzionalmente semplice:
   - invia il comando di run del G-code
 - se riceve il comando `polaris-run-remote <remoteFileName>`:
   - esegue un file G-code gia' presente lato server Polaris
+- se riceve il comando `polaris-enable-axis <axisName>`:
+  - risolve il nome asse sul controller Polaris
+  - invia il comando di enable dell'asse
+- se riceve il comando `polaris-gcode-status`:
+  - legge lo stato corrente del motore G-code Polaris
+  - restituisce stato e codice stato
 - se riceve il comando `polaris-info`:
   - legge un set minimo di informazioni standard dal controllore Polaris
   - `LinuxKernelVersion`
@@ -46,7 +52,9 @@ Il `ProcessCoordinator` resta nello solution ma in questa fase non partecipa al 
 
 ## Configurazione
 
-La configurazione si trova negli `appsettings.json` di API e Worker, sotto `Middleware`:
+La configurazione condivisa si trova nel file `appsettings.json` alla root del repository.
+
+Sia `Middleware.Api` sia `Middleware.Worker` caricano questo file unico, sotto `Middleware`:
 
 - `Mongo.ConnectionString`
 - `Mongo.Database`
@@ -81,6 +89,8 @@ Scenario target:
 7. In alternativa l'API espone:
    - `POST /api/polaris/upload-and-run`
    - `POST /api/polaris/run-remote`
+   - `POST /api/polaris/enable-axis`
+   - `GET /api/polaris/gcode/status`
    - `GET /api/polaris/info`
 
 Configurazione di default allineata ai riferimenti WISE già presenti:
@@ -90,7 +100,7 @@ Configurazione di default allineata ai riferimenti WISE già presenti:
 - Collection MongoDB telemetria PLC: `integration_plc_telemetry`
 - Collection MongoDB metadata file: `integration_file_artifacts`
 - PlcId: `S7-1200-Station_1`
-- Polaris server IP di default: `192.168.99.57`
+- Polaris server IP di default: `192.168.11.75`
 - Polaris G-code directory di default: `/home/polaris/PolarisServer/usr/gcode`
 
 ## Schema di persistenza

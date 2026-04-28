@@ -31,6 +31,13 @@ public sealed class PolarisController(
         return Ok(result);
     }
 
+    [HttpGet("gcode/status")]
+    public async Task<IActionResult> GetGCodeStatus(CancellationToken cancellationToken)
+    {
+        var result = await polarisGCodeService.ReadStatusAsync(cancellationToken);
+        return Ok(result);
+    }
+
     [HttpPost("upload-and-run")]
     public async Task<IActionResult> UploadAndRun(
         [FromBody] PolarisUploadAndRunRequest request,
@@ -65,6 +72,19 @@ public sealed class PolarisController(
         return Ok(result);
     }
 
+    [HttpPost("enable-axis")]
+    public async Task<IActionResult> EnableAxis(
+        [FromBody] PolarisEnableAxisRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await polarisGCodeService.EnableAxisAsync(
+            request.AxisName,
+            options.Value.Polaris.IpAddress,
+            cancellationToken);
+
+        return Ok(result);
+    }
+
     private string ResolveLocalFilePath(string localFilePath)
     {
         if (string.IsNullOrWhiteSpace(localFilePath))
@@ -81,3 +101,5 @@ public sealed class PolarisController(
 public sealed record PolarisUploadAndRunRequest(string LocalFilePath, string? RemoteFileName);
 
 public sealed record PolarisRunRemoteRequest(string RemoteFileName);
+
+public sealed record PolarisEnableAxisRequest(string AxisName);

@@ -15,7 +15,7 @@ public sealed class ConsoleCommandWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation(
-            "Console commands enabled. Use 'upload-files <username>', 'polaris-run <localFileNameOrPath> [remoteFileName]', 'polaris-run-remote <remoteFileName>' or 'polaris-info'.");
+            "Console commands enabled. Use 'upload-files <username>', 'polaris-run <localFileNameOrPath> [remoteFileName]', 'polaris-run-remote <remoteFileName>', 'polaris-enable-axis <axisName>', 'polaris-gcode-status' or 'polaris-info'.");
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -168,6 +168,68 @@ public sealed class ConsoleCommandWorker(
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Polaris info command failed.");
+                }
+
+                continue;
+            }
+
+            if (parts[0].Equals("polaris-enable-axis", StringComparison.OrdinalIgnoreCase))
+            {
+                if (parts.Length < 2)
+                {
+                    logger.LogWarning("Usage: polaris-enable-axis <axisName>");
+                    continue;
+                }
+
+                try
+                {
+                    using var scope = serviceScopeFactory.CreateScope();
+                    var polarisGCodeService = scope.ServiceProvider.GetRequiredService<PolarisGCodeService>();
+                    var result = await polarisGCodeService.EnableAxisAsync(
+                        parts[1],
+                        options.Value.Polaris.IpAddress,
+                        stoppingToken);
+
+                    logger.LogInformation(
+                        "Polaris axis enabled. Server {ServerIpAddress}, axis {AxisName}, axis number {AxisNumber}.",
+                        result.ServerIpAddress,
+                        result.AxisName,
+                        result.AxisNumber);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Polaris enable-axis command failed.");
+                }
+
+                continue;
+            }
+
+            if (parts[0].Equals("polaris-gcode-status", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    using var scope = serviceScopeFactory.CreateScope();
+                    var polarisGCodeService = scope.ServiceProvider.GetRequiredService<PolarisGCodeService>();
+                    var result = await polarisGCodeService.ReadStatusAsync(stoppingToken);
+
+                    logger.LogInformation(
+                        "Polaris G-code status. Server {ServerIpAddress}, state {State} ({StateCode}), error {Error}.",
+                        result.ServerIpAddress,
+                        result.State,
+                        result.StateCode,
+                        result.Error ?? "<none>");
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Polaris G-code status command failed.");
                 }
 
                 continue;
