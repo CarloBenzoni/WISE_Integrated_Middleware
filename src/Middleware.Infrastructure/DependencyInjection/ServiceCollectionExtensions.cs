@@ -23,6 +23,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPolarisGCodeAdapter, PolarisGCodeAdapter>();
         services.AddSingleton<IPlcTelemetrySampleRepository, MongoPlcTelemetrySampleRepository>();
         services.AddSingleton<IFileArtifactMetadataRepository, MongoFileArtifactMetadataRepository>();
+        services.AddSingleton<IProductionDesignRepository, MongoProductionDesignRepository>();
+        services.AddSingleton<IProductionJobRepository, MongoProductionJobRepository>();
         services.AddSingleton<MiddlewareDiagnosticsService>();
         services.AddHostedService<StartupDiagnosticsService>();
 

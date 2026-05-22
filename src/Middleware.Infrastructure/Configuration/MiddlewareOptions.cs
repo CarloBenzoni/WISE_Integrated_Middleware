@@ -9,6 +9,7 @@ public sealed class MiddlewareOptions
     public StorageOptions Storage { get; set; } = new();
     public PolarisOptions Polaris { get; set; } = new();
     public WorkerOptions Worker { get; set; } = new();
+    public ProcessCoordinatorOptions ProcessCoordinator { get; set; } = new();
 }
 
 public sealed class MongoOptions
@@ -17,11 +18,20 @@ public sealed class MongoOptions
     public string Database { get; set; } = "WISE";
     public string PlcTelemetryCollection { get; set; } = "integration_plc_telemetry";
     public string FileMetadataCollection { get; set; } = "integration_file_artifacts";
+    public string ProductionDesignCollection { get; set; } = "production_designs";
+    public string ProductionJobCollection { get; set; } = "production_jobs";
 }
 
 public sealed class WorkerOptions
 {
     public int PollingIntervalMs { get; set; } = 1000;
+}
+
+public sealed class ProcessCoordinatorOptions
+{
+    public int IdleDelayMs { get; set; } = 3000;
+    public int GCodeStatusPollingIntervalMs { get; set; } = 1000;
+    public int StepCompletionTimeoutMs { get; set; } = 600000;
 }
 
 public sealed class OpcUaOptions

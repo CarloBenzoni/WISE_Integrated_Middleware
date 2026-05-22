@@ -5,6 +5,24 @@ namespace Middleware.Application.Services;
 
 public sealed class PolarisGCodeService(IPolarisGCodeAdapter polarisGCodeAdapter)
 {
+    public async Task UploadAsync(
+        string localFilePath,
+        string remoteFileName,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(localFilePath))
+        {
+            throw new ArgumentException("Local file path is required.", nameof(localFilePath));
+        }
+
+        if (string.IsNullOrWhiteSpace(remoteFileName))
+        {
+            throw new ArgumentException("Remote file name is required.", nameof(remoteFileName));
+        }
+
+        await polarisGCodeAdapter.UploadGCodeAsync(localFilePath, remoteFileName, cancellationToken);
+    }
+
     public async Task<PolarisGCodeRunResult> UploadAndRunAsync(
         string localFilePath,
         string remoteFileName,

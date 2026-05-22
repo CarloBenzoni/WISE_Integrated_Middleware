@@ -10,6 +10,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Services.FileUploadService>();
         services.AddScoped<Services.PolarisGCodeService>();
         services.AddScoped<Services.PolarisInfoService>();
+        services.AddScoped<Services.ProductionDesignService>();
+        services.AddScoped<Services.ProductionJobService>();
 
         return services;
     }
