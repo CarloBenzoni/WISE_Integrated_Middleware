@@ -1,127 +1,127 @@
 # WISE Integrated Middleware
 
-`WISE_Integrated_Middleware` e' il livello di integrazione del progetto WISE.
+`WISE_Integrated_Middleware` is the integration layer of the WISE project.
 
-Il suo compito e' fare da ponte tra:
+Its purpose is to act as a bridge between:
 
-- componenti OT/industriali, come PLC e controller macchina
-- storage tecnico, come HDFS/WebHDFS
-- persistenza applicativa, come MongoDB
-- client esterni, come HMI o applicazioni manager
+- OT/industrial components, such as PLCs and machine controllers
+- technical storage, such as HDFS/WebHDFS
+- application persistence, such as MongoDB
+- external clients, such as HMI or manager applications
 
-In pratica evita che ogni applicazione debba parlare direttamente con OPC UA, WebHDFS, MongoDB e Polaris.  
-Centralizza le integrazioni, uniforma i contratti applicativi e rende piu' semplice evolvere il sistema.
+In practice, it prevents each application from needing to speak directly with OPC UA, WebHDFS, MongoDB, and Polaris.  
+It centralizes integrations, standardizes application contracts, and makes it simpler to evolve the system.
 
-## 1. Cosa risolve
+## 1. What It Solves
 
-Il problema di partenza e' la frammentazione:
+The starting problem is fragmentation:
 
-- il PLC espone dati via OPC UA
-- i documenti devono finire su HDFS
-- i metadata devono essere cercabili in MongoDB
-- Polaris va comandato con una libreria dedicata
-- l'HMI ha bisogno di API semplici e stabili
+- the PLC exposes data via OPC UA
+- documents must be stored in HDFS
+- metadata must be searchable in MongoDB
+- Polaris must be commanded with a dedicated library
+- the HMI needs simple and stable APIs
 
-Senza middleware, ogni client dovrebbe integrare direttamente tutti questi protocolli e sistemi.  
-Con questo middleware, i client parlano a un solo strato applicativo, che si occupa di:
+Without middleware, each client would need to integrate all these protocols and systems directly.  
+With this middleware, clients speak to a single application layer that handles:
 
-- acquisire telemetria PLC
-- persistire dati e metadata
-- gestire upload/download documenti
-- inviare comandi a Polaris
-- esporre diagnostica dello stato dei componenti
+- acquiring PLC telemetry
+- persisting data and metadata
+- managing document upload/download
+- sending commands to Polaris
+- exposing diagnostics of component status
 
-## 2. Soluzione in una frase
+## 2. Solution in One Sentence
 
-La soluzione e' un middleware .NET modulare, composto da un host API e un host Worker, che usa:
+The solution is a modular .NET middleware, composed of an API host and a Worker host, that uses:
 
-- `OPC UA` per leggere il PLC
-- `MongoDB` per salvare telemetria e metadata
-- `WebHDFS` per salvare i file
-- `PolarisCommunication` per comandare il controller Polaris
+- `OPC UA` to read the PLC
+- `MongoDB` to save telemetry and metadata
+- `WebHDFS` to save files
+- `PolarisCommunication` to command the Polaris controller
 
-## 3. Player in gioco
+## 3. Main Components
 
-I player principali del sistema sono questi.
+The main components of the system are:
 
 ### PLC / OPC UA Server
 
-E' la sorgente dei dati macchina.  
-Il middleware si connette al server OPC UA, esplora i nodi configurati e legge le variabili esposte.
+It is the source of machine data.  
+The middleware connects to the OPC UA server, explores configured nodes, and reads exposed variables.
 
 ### MongoDB
 
-E' il database applicativo.
+It is the application database.
 
-Viene usato per salvare:
+It is used to save:
 
-- telemetria PLC nella collection `integration_plc_telemetry`
-- metadata dei documenti nella collection `integration_file_artifacts`
+- PLC telemetry in the `integration_plc_telemetry` collection
+- document metadata in the `integration_file_artifacts` collection
 
-Mongo non contiene i file veri e propri, ma i dati descrittivi e ricercabili.
+MongoDB does not contain the actual files, but searchable descriptive data.
 
-Inoltre viene usato anche per salvare:
+It is also used to save:
 
-- design di produzione persistiti nella collection `production_designs`
-- job di produzione persistiti nella collection `production_jobs`
+- persisted production designs in the `production_designs` collection
+- persisted production jobs in the `production_jobs` collection
 
 ### HDFS / WebHDFS
 
-E' lo storage dei file.
+It is the file storage system.
 
-Il middleware carica qui i documenti e poi usa Mongo per salvarne i metadata.  
-In questo modo:
+The middleware uploads documents here and uses MongoDB to save their metadata.  
+This way:
 
-- HDFS conserva i contenuti
-- Mongo rende i documenti cercabili e gestibili
+- HDFS preserves content
+- MongoDB makes documents searchable and manageable
 
 ### Polaris Controller
 
-E' il controller macchina per G-code e comandi asse.
+It is the machine controller for G-code and axis commands.
 
-Il middleware oggi supporta:
+The middleware currently supports:
 
-- lettura info base del controller
-- upload file G-code
-- esecuzione G-code remoto
-- enable di un asse
-- lettura stato del motore G-code
+- reading basic controller info
+- uploading G-code files
+- remote G-code execution
+- enabling an axis
+- reading G-code motor status
 
-### HMI / Manager App / Client HTTP
+### HMI / Manager App / HTTP Client
 
-Sono i consumatori del middleware.
+They are consumers of the middleware.
 
-Possono:
+They can:
 
-- interrogare le API REST
-- caricare documenti
-- leggere telemetria
-- lanciare comandi Polaris
-- leggere lo stato dei componenti
+- query REST APIs
+- upload documents
+- read telemetry
+- launch Polaris commands
+- read component status
 
 ### Middleware.Worker
 
-E' il processo background.
+It is the background process.
 
-Si occupa di:
+It handles:
 
-- polling periodico della telemetria PLC
-- comandi console per test e operazioni manuali
+- periodic polling of PLC telemetry
+- console commands for testing and manual operations
 
 ### Middleware.Api
 
-E' il processo HTTP.
+It is the HTTP process.
 
-Si occupa di:
+It handles:
 
-- esporre endpoint REST verso HMI e client esterni
-- gestire upload/download documenti
-- esporre telemetria e diagnostica
-- fare da entrypoint per i comandi Polaris
+- exposing REST endpoints to HMI and external clients
+- managing document upload/download
+- exposing telemetry and diagnostics
+- serving as entry point for Polaris commands
 
-## 4. Architettura del repository
+## 4. Repository Architecture
 
-La solution contiene questi progetti:
+The solution contains these projects:
 
 - `src/Middleware.Domain`
 - `src/Middleware.Application`
@@ -132,24 +132,24 @@ La solution contiene questi progetti:
 
 ### Middleware.Domain
 
-Contiene i modelli di dominio e i record condivisi:
+Contains domain models and shared records:
 
-- sample PLC
-- payload telemetria
-- metadata documento
-- contenuto file
-- risultati dei comandi Polaris
+- PLC sample
+- telemetry payload
+- document metadata
+- file content
+- Polaris command results
 
-Qui non c'e' logica di integrazione, solo struttura dei dati.
+There is no integration logic here, just data structure.
 
 ### Middleware.Application
 
-Contiene:
+Contains:
 
-- i contratti astratti delle integrazioni
-- i servizi applicativi che orchestrano i casi d'uso
+- abstract contracts of integrations
+- application services that orchestrate use cases
 
-Esempi:
+Examples:
 
 - `IOpcUaAdapter`
 - `IFileStorageAdapter`
@@ -157,7 +157,7 @@ Esempi:
 - `IPlcTelemetrySampleRepository`
 - `IFileArtifactMetadataRepository`
 
-e i servizi:
+and the services:
 
 - `MiddlewareIngestionService`
 - `FileUploadService`
@@ -166,22 +166,22 @@ e i servizi:
 
 ### Middleware.Infrastructure
 
-Contiene le implementazioni concrete:
+Contains concrete implementations:
 
 - [`OpcUaAdapter`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Infrastructure\Adapters\OpcUaAdapter.cs)
 - `WebHdfsFileStorageAdapter`
 - `PolarisGCodeAdapter`
 - `MongoPlcTelemetrySampleRepository`
 - `MongoFileArtifactMetadataRepository`
-- servizi diagnostici
+- diagnostic services
 
-Questo e' il layer dove vivono i dettagli tecnologici.
+This is the layer where technical details live.
 
 ### Middleware.Api
 
-Espone i controller REST.
+Exposes REST controllers.
 
-Controller principali:
+Main controllers:
 
 - `DocumentsController`
 - `TelemetryController`
@@ -190,146 +190,146 @@ Controller principali:
 
 ### Middleware.Worker
 
-Esegue i job in background.
+Executes background jobs.
 
-Hosted service principali:
+Main hosted services:
 
 - `OpcUaIngestionWorker`
 - `ConsoleCommandWorker`
 
 ### ProcessCoordinator
 
-E' il processo che orchestra l'esecuzione produttiva.
+It is the process that orchestrates production execution.
 
-Si occupa di:
+It handles:
 
-- leggere i job di produzione persistiti in MongoDB
-- recuperare il design selezionato e i file collegati
-- verificare la readiness minima di Polaris
-- eseguire i G-code nella sequenza definita dal design
-- aggiornare lo stato del job passo per passo
+- reading production jobs persisted in MongoDB
+- retrieving the selected design and related files
+- verifying minimum Polaris readiness
+- executing G-codes in the sequence defined by the design
+- updating job status step by step
 
-In questo modo il sistema distingue chiaramente:
+This way the system clearly distinguishes:
 
-- API atomiche, usate da HMI e client
-- orchestrazione di workflow, eseguita dal coordinator
+- atomic APIs, used by HMI and clients
+- workflow orchestration, executed by the coordinator
 
-## 5. Come funziona la soluzione
+## 5. How the Solution Works
 
-### 5.1 Flusso PLC -> MongoDB
+### 5.1 PLC → MongoDB Flow
 
-Il Worker avvia un ciclo di polling periodico.
+The Worker starts a periodic polling loop.
 
-Passi:
+Steps:
 
-1. `OpcUaIngestionWorker` sveglia il ciclo ogni `PollingIntervalMs`
-2. chiama `MiddlewareIngestionService`
-3. `MiddlewareIngestionService` usa `OpcUaAdapter`
+1. `OpcUaIngestionWorker` wakes up the loop every `PollingIntervalMs`
+2. calls `MiddlewareIngestionService`
+3. `MiddlewareIngestionService` uses `OpcUaAdapter`
 4. `OpcUaAdapter`:
-   - si connette al server OPC UA
-   - esplora il nodo root configurato
-   - risolve le variabili disponibili
-   - legge i valori correnti
-5. il sample viene convertito in `PlcTelemetrySample`
-6. `MongoPlcTelemetrySampleRepository` lo salva in MongoDB
+   - connects to the OPC UA server
+   - explores the configured root node
+   - resolves available variables
+   - reads current values
+5. the sample is converted to `PlcTelemetrySample`
+6. `MongoPlcTelemetrySampleRepository` saves it to MongoDB
 
-Il middleware supporta discovery dinamica delle variabili OPC UA sotto il nodo configurato.  
-Questo riduce la dipendenza da un mapping hardcoded delle variabili.
+The middleware supports dynamic discovery of OPC UA variables under the configured node.  
+This reduces dependency on hardcoded variable mapping.
 
-### 5.2 Flusso documenti -> HDFS + MongoDB
+### 5.2 Documents → HDFS + MongoDB Flow
 
-Passi:
+Steps:
 
-1. un client chiama `POST /api/documents/upload`
-2. `DocumentsController` salva i file in una directory temporanea
-3. costruisce una lista di `FileArtifactUploadRequest`
-4. chiama `FileUploadService`
-5. `FileUploadService` usa:
-   - `WebHdfsFileStorageAdapter` per caricare il file in HDFS
-   - `MongoFileArtifactMetadataRepository` per salvare i metadata
-6. i file vengono organizzati in HDFS per `use case` e `category`
-7. i metadata diventano interrogabili via API
+1. a client calls `POST /api/documents/upload`
+2. `DocumentsController` saves files to a temporary directory
+3. builds a list of `FileArtifactUploadRequest`
+4. calls `FileUploadService`
+5. `FileUploadService` uses:
+   - `WebHdfsFileStorageAdapter` to upload the file to HDFS
+   - `MongoFileArtifactMetadataRepository` to save metadata
+6. files are organized in HDFS by `use case` and `category`
+7. metadata becomes queryable via API
 
-Questa separazione e' intenzionale:
+This separation is intentional:
 
-- HDFS memorizza il contenuto
-- MongoDB memorizza il catalogo
+- HDFS stores content
+- MongoDB stores the catalog
 
-### 5.3 Flusso documenti -> ricerca / download / delete
+### 5.3 Documents → Search / Download / Delete Flow
 
-I documenti non vengono cercati direttamente su HDFS.  
-La ricerca avviene sui metadata in MongoDB.
+Documents are not searched directly on HDFS.  
+Search happens on metadata in MongoDB.
 
-Questo rende semplici e veloci:
+This makes simple and fast:
 
-- filtro per nome
-- filtro per use case
-- filtro per categoria
-- filtro per utente
-- download singolo
-- download multiplo in zip
-- delete metadata + file HDFS
+- filter by name
+- filter by use case
+- filter by category
+- filter by user
+- single download
+- multiple download as zip
+- delete metadata + HDFS file
 
-### 5.4 Flusso comandi Polaris
+### 5.4 Polaris Commands Flow
 
-Passi tipici:
+Typical steps:
 
-1. il client chiama un endpoint `/api/polaris/*`
-2. `PolarisController` inoltra al `PolarisGCodeService` o `PolarisInfoService`
-3. il service usa `PolarisGCodeAdapter`
-4. l'adapter parla con il controller Polaris tramite la libreria `PolarisCommunication`
+1. the client calls an endpoint `/api/polaris/*`
+2. `PolarisController` forwards to `PolarisGCodeService` or `PolarisInfoService`
+3. the service uses `PolarisGCodeAdapter`
+4. the adapter communicates with Polaris controller via `PolarisCommunication` library
 
-Comandi attualmente supportati:
+Currently supported commands:
 
-- leggere info controller
-- leggere stato G-code
-- run di un file remoto
+- read controller info
+- read G-code status
+- run a remote file
 - upload-and-run
-- enable di un asse
+- enable an axis
 
-### 5.5 Flusso design -> job -> ProcessCoordinator
+### 5.5 Design → Job → ProcessCoordinator Flow
 
-Questo e' il flusso nuovo che collega HMI, storage e macchina.
+This is the new flow that connects HMI, storage, and machine.
 
-Passi:
+Steps:
 
-1. l'utente configura uno use case dall'HMI
-2. l'HMI salva un `ProductionDesign` via `POST /api/production/designs`
-3. il design contiene:
-   - identificativo univoco
+1. the user configures a use case from the HMI
+2. the HMI saves a `ProductionDesign` via `POST /api/production/designs`
+3. the design contains:
+   - unique identifier
    - use case
-   - prodotto/individual selezionato
-   - snapshot dei parametri per ogni step
-   - recipe selezionata per ogni step
-   - collegamento ai documenti part program su HDFS/Mongo
-4. quando l'utente decide di produrre, l'HMI crea un `ProductionJob`
-5. il `ProcessCoordinator` pesca il primo job `Queued`
-6. recupera il design da MongoDB
-7. scarica i part program collegati dal repository documentale
-8. li carica su Polaris e li esegue in sequenza
-9. aggiorna il job in MongoDB come:
+   - selected product/individual
+   - parameter snapshot for each step
+   - selected recipe for each step
+   - link to part program documents on HDFS/MongoDB
+4. when the user decides to produce, the HMI creates a `ProductionJob`
+5. `ProcessCoordinator` picks the first `Queued` job
+6. retrieves the design from MongoDB
+7. downloads related part programs from the document repository
+8. loads them on Polaris and executes them in sequence
+9. updates the job in MongoDB as:
    - `Validating`
    - `Running`
    - `Completed`
    - `Failed`
-10. se si verifica un errore, il job va in `Failed` e il flusso si ferma
+10. if an error occurs, the job goes to `Failed` and the flow stops
 
-Questa strategia e' volutamente semplice:
+This strategy is intentionally simple:
 
-- nessun retry automatico
-- nessun recovery automatico
-- restart/manual intervention richiesta dopo un fail
+- no automatic retry
+- no automatic recovery
+- restart/manual intervention required after a fail
 
-Il vantaggio e' che tutto il contesto rimane persistito e recuperabile:
+The advantage is that all context remains persisted and recoverable:
 
 - design
-- file collegati
+- related files
 - job
-- eventi di esecuzione
+- execution events
 
-### 5.6 Flusso diagnostica
+### 5.6 Diagnostics Flow
 
-`MiddlewareDiagnosticsService` verifica la raggiungibilita' di:
+`MiddlewareDiagnosticsService` verifies reachability of:
 
 - MongoDB
 - WebHDFS NameNode
@@ -337,15 +337,15 @@ Il vantaggio e' che tutto il contesto rimane persistito e recuperabile:
 - OPC UA
 - Polaris
 
-Il risultato viene esposto via:
+The result is exposed via:
 
 - `GET /api/system/status`
 
-Inoltre gli stessi controlli vengono riutilizzati anche nei log di startup.
+Additionally, the same checks are reused in startup logs.
 
-## 6. API principali
+## 6. Main APIs
 
-### Documenti
+### Documents
 
 - `GET /api/documents`
 - `GET /api/documents/{documentId}`
@@ -354,7 +354,7 @@ Inoltre gli stessi controlli vengono riutilizzati anche nei log di startup.
 - `POST /api/documents/upload`
 - `POST /api/documents/download-zip`
 
-### Telemetria
+### Telemetry
 
 - `GET /api/telemetry/variables`
 - `GET /api/telemetry/series`
@@ -369,7 +369,7 @@ Inoltre gli stessi controlli vengono riutilizzati anche nei log di startup.
 - `POST /api/polaris/upload-and-run`
 - `POST /api/polaris/enable-axis`
 
-### Produzione
+### Production
 
 - `GET /api/production/designs`
 - `GET /api/production/designs/{designId}`
@@ -378,15 +378,15 @@ Inoltre gli stessi controlli vengono riutilizzati anche nei log di startup.
 - `GET /api/production/jobs/{jobId}`
 - `POST /api/production/jobs`
 
-### Diagnostica
+### Diagnostics
 
 - `GET /api/system/status`
 
-## 7. Comandi console del Worker
+## 7. Worker Console Commands
 
-Quando il `Middleware.Worker` e' in esecuzione, espone comandi da terminale utili per test e operazioni manuali.
+When `Middleware.Worker` is running, it exposes useful terminal commands for testing and manual operations.
 
-Comandi attuali:
+Current commands:
 
 - `upload-files <username>`
 - `polaris-run <localFileNameOrPath> [remoteFileName]`
@@ -395,21 +395,21 @@ Comandi attuali:
 - `polaris-gcode-status`
 - `polaris-info`
 
-Questa modalita' e' pensata soprattutto per:
+This mode is designed primarily for:
 
-- test veloci
-- debug locale
-- validazione delle integrazioni senza HMI
+- quick testing
+- local debugging
+- integration validation without HMI
 
-## 8. Configurazione
+## 8. Configuration
 
-La configurazione condivisa si trova nel file:
+Shared configuration is found in the file:
 
 - [`appsettings.json`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\appsettings.json)
 
-Sia `Middleware.Api` sia `Middleware.Worker` leggono lo stesso file.
+Both `Middleware.Api` and `Middleware.Worker` read the same file.
 
-Sezioni principali:
+Main sections:
 
 - `Middleware.Mongo`
 - `Middleware.OpcUa`
@@ -418,7 +418,7 @@ Sezioni principali:
 - `Middleware.ProcessCoordinator`
 - `Middleware.Worker`
 
-### Configurazione Mongo
+### MongoDB Configuration
 
 - `ConnectionString`
 - `Database`
@@ -427,7 +427,7 @@ Sezioni principali:
 - `ProductionDesignCollection`
 - `ProductionJobCollection`
 
-### Configurazione OPC UA
+### OPC UA Configuration
 
 - `PlcId`
 - `EndpointUrl`
@@ -442,7 +442,7 @@ Sezioni principali:
 - `RecursiveBrowse`
 - `User`
 
-### Configurazione Storage
+### Storage Configuration
 
 - `UploadFolderPath`
 - `DownloadFolderPath`
@@ -452,32 +452,32 @@ Sezioni principali:
 - `HdfsFolderPath`
 - `HdfsUser`
 
-### Configurazione Polaris
+### Polaris Configuration
 
 - `Enabled`
 - `IpAddress`
 - `GCodeDirectory`
 - `LocalGCodeFolderPath`
 
-### Configurazione Worker
+### Worker Configuration
 
 - `PollingIntervalMs`
 
-### Configurazione ProcessCoordinator
+### ProcessCoordinator Configuration
 
 - `IdleDelayMs`
 - `GCodeStatusPollingIntervalMs`
 - `StepCompletionTimeoutMs`
 
-## 9. Persistenza dati
+## 9. Data Persistence
 
-### Telemetria PLC
+### PLC Telemetry
 
 Collection:
 
 - `integration_plc_telemetry`
 
-Schema envelope:
+Envelope schema:
 
 - `record_type`
 - `source_type`
@@ -486,21 +486,21 @@ Schema envelope:
 - `ingested_at_utc`
 - `payload`
 
-Il `payload` oggi contiene un dizionario di variabili lette via OPC UA.
+The `payload` currently contains a dictionary of variables read via OPC UA.
 
-### Metadata documenti
+### Document Metadata
 
 Collection:
 
 - `integration_file_artifacts`
 
-Contiene:
+Contains:
 
 - `document_id`
-- nome file
-- nome originale
-- path HDFS
-- dimensione
+- file name
+- original name
+- HDFS path
+- size
 - user
 - mime type
 - file type
@@ -508,21 +508,21 @@ Contiene:
 - category
 - source system
 
-### File documentali
+### Document Content
 
-I contenuti binari vengono salvati in HDFS, non in MongoDB.
+Binary content is saved in HDFS, not in MongoDB.
 
-La struttura HDFS e' del tipo:
+HDFS structure is of the type:
 
 - `/WISE/{UseCase}/{Category}/{DocumentId}_{OriginalFileName}`
 
-### Design di produzione
+### Production Designs
 
 Collection:
 
 - `production_designs`
 
-Contiene:
+Contains:
 
 - `design_id`
 - `design_name`
@@ -534,24 +534,24 @@ Contiene:
 - `related_documents`
 - `process_steps`
 
-Ogni `process_step` persiste:
+Each `process_step` persists:
 
-- sequenza
-- nome processo
+- sequence
+- process name
 - label
 - flag `requires_machine_execution`
-- recipe selezionata
-- snapshot parametri
+- selected recipe
+- parameter snapshot
 - `part_program_document_id`
-- nome file part program
+- part program file name
 
-### Job di produzione
+### Production Jobs
 
 Collection:
 
 - `production_jobs`
 
-Contiene:
+Contains:
 
 - `job_id`
 - `design_id`
@@ -567,107 +567,107 @@ Contiene:
 - `failure_reason`
 - `events`
 
-## 10. Stato attuale della robustezza
+## 10. Current Robustness Status
 
-Il middleware oggi e' gia' utile e funzionante, ma va considerato come base solida di laboratorio/integrazione avanzata, non ancora come piattaforma industriale definitiva.
+The middleware is already useful and functional, but should be considered as a solid laboratory/advanced integration base, not yet as a definitive industrial platform.
 
-Punti forti:
+Strengths:
 
-- layering chiaro
-- configurazione unificata
-- buona separazione tra metadata e file content
-- integrazione Polaris gia' utilizzabile
-- diagnostica di sistema presente
-- orchestrazione produzione persistita con design e job separati
+- clear layering
+- unified configuration
+- good separation between metadata and file content
+- Polaris integration already usable
+- system diagnostics present
+- persisted production orchestration with separate designs and jobs
 
-Limiti attuali:
+Current limitations:
 
-- sicurezza API minima
-- test automatici ancora limitati
-- alcune API OPC UA usano metodi deprecati della libreria
-- logging migliorabile con correlation id e metriche
-- nessuna retention policy esplicita per la telemetria
+- minimal API security
+- automated tests still limited
+- some OPC UA APIs use deprecated library methods
+- logging improvable with correlation IDs and metrics
+- no explicit retention policy for telemetry
 
-## 11. Come partire se sei nuovo sul progetto
+## 11. Getting Started if You're New to the Project
 
-Se una persona nuova prende in mano il progetto, l'ordine corretto per capirlo e usarlo e' questo.
+If a new person takes over the project, the correct order to understand and use it is this.
 
-### Passo 1: capire i due host
+### Step 1: Understand the Two Hosts
 
-Ci sono due eseguibili importanti:
+There are two important executables:
 
 - `Middleware.Api`
 - `Middleware.Worker`
 
-L'API serve ai client HTTP.  
-Il Worker serve al polling e ai comandi console.
+The API serves HTTP clients.  
+The Worker handles polling and console commands.
 
-### Passo 2: leggere la configurazione
+### Step 2: Read the Configuration
 
-Apri:
+Open:
 
 - [`appsettings.json`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\appsettings.json)
 
-e verifica:
+and verify:
 
-- endpoint OPC UA
-- config MongoDB
-- config HDFS
-- config Polaris
-- polling worker
+- OPC UA endpoint
+- MongoDB config
+- HDFS config
+- Polaris config
+- worker polling
 
-### Passo 3: capire i layer
+### Step 3: Understand the Layers
 
-Per orientarti:
+To orient yourself:
 
-- `Domain`: cosa sono i dati
-- `Application`: quali casi d'uso esistono
-- `Infrastructure`: come si parla con i sistemi esterni
-- `Api`: come i client usano il middleware
-- `Worker`: cosa succede in background
+- `Domain`: what the data is
+- `Application`: what use cases exist
+- `Infrastructure`: how to talk to external systems
+- `Api`: how clients use the middleware
+- `Worker`: what happens in the background
 
-### Passo 4: avviare i componenti principali
+### Step 4: Start the Main Components
 
-Per usare il middleware in locale, servono almeno:
+To use the middleware locally, you need at least:
 
-1. MongoDB attivo
-2. HDFS/WebHDFS attivo se vuoi usare i documenti
-3. server OPC UA attivo se vuoi la telemetria
-4. Polaris attivo se vuoi i comandi macchina
-5. `ProcessCoordinator` attivo se vuoi eseguire i job di produzione persistiti
+1. MongoDB running
+2. HDFS/WebHDFS running if you want to use documents
+3. OPC UA server running if you want telemetry
+4. Polaris running if you want machine commands
+5. `ProcessCoordinator` running if you want to execute persisted production jobs
 
-Poi:
+Then:
 
 ```powershell
 dotnet run --project .\src\Middleware.Api
 ```
 
-e/o
+and/or
 
 ```powershell
 dotnet run --project .\src\Middleware.Worker
 ```
 
-e, per l'orchestrazione produzione:
+and, for production orchestration:
 
 ```powershell
 dotnet run --project .\src\ProcessCoordinator
 ```
 
-### Passo 5: capire i flussi prima di modificare codice
+### Step 5: Understand the Flows Before Modifying Code
 
-Prima di cambiare qualcosa:
+Before changing anything:
 
-- per il PLC, guarda `MiddlewareIngestionService` + `OpcUaAdapter`
-- per i documenti, guarda `FileUploadService` + `WebHdfsFileStorageAdapter` + repository Mongo
-- per Polaris, guarda `PolarisController` + `PolarisGCodeService` + `PolarisGCodeAdapter`
-- per la produzione, guarda `ProductionController` + repository `production_*` + `ProcessCoordinator`
+- for PLC, look at `MiddlewareIngestionService` + `OpcUaAdapter`
+- for documents, look at `FileUploadService` + `WebHdfsFileStorageAdapter` + MongoDB repository
+- for Polaris, look at `PolarisController` + `PolarisGCodeService` + `PolarisGCodeAdapter`
+- for production, look at `ProductionController` + `production_*` repository + `ProcessCoordinator`
 
-Questo evita di toccare il layer sbagliato.
+This avoids touching the wrong layer.
 
-## 12. File chiave da conoscere
+## 12. Key Files to Know
 
-Se devi diventare autonomo, questi sono i file da leggere per primi:
+If you need to become independent, these are the files to read first:
 
 - [`appsettings.json`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\appsettings.json)
 - [`src/Middleware.Api/Program.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Api\Program.cs)
@@ -687,15 +687,15 @@ Se devi diventare autonomo, questi sono i file da leggere per primi:
 - [`src/Middleware.Infrastructure/Services/MiddlewareDiagnosticsService.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Infrastructure\Services\MiddlewareDiagnosticsService.cs)
 - [`src/ProcessCoordinator/Services/ProductionWorkflowCoordinator.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\ProcessCoordinator\Services\ProductionWorkflowCoordinator.cs)
 
-## 13. In sintesi
+## 13. In Summary
 
-Se dovessi spiegare il progetto a una persona nuova in poche righe:
+If you had to explain the project to a new person in a few lines:
 
-- il `Worker` raccoglie dati dal PLC e offre comandi manuali
-- l'`Api` espone servizi REST per client e HMI
-- il `ProcessCoordinator` esegue i workflow di produzione persistiti
-- `Infrastructure` integra OPC UA, Mongo, HDFS e Polaris
-- `Application` orchestra i casi d'uso
-- `Domain` definisce i dati condivisi
+- the `Worker` collects data from the PLC and offers manual commands
+- the `Api` exposes REST services for clients and HMI
+- the `ProcessCoordinator` executes persisted production workflows
+- `Infrastructure` integrates OPC UA, MongoDB, HDFS, and Polaris
+- `Application` orchestrates the use cases
+- `Domain` defines the shared data
 
 Il middleware e' quindi il punto unico di integrazione tra mondo macchina, storage e applicazioni client.
