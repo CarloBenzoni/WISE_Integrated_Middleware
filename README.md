@@ -1,5 +1,30 @@
 # WISE Integrated Middleware
 
+## Document Header
+
+Title: WISE Integrated Middleware
+
+Comment / Function: Middleware software solution for the WISE machine ecosystem.
+WISE Machine is developed within the framework of the European Union Horizon Europe research and innovation programme, Grant Agreement No. 101138718.
+This work is related to Task 7.5.
+
+Company: MCH-TRONICS sagl
+
+Author: Carlo Benzoni
+
+Target System: WISE production environment
+
+Engineering: C# / .NET
+
+Requirements: See project and deployment requirements
+
+## Change Log
+
+Version: 001.000.000
+Date: 2026-05-29
+Expert in Charge: Carlo Benzoni
+Changes Applied: First released version
+
 `WISE_Integrated_Middleware` is the integration layer of the WISE project.
 
 Its purpose is to act as a bridge between:
