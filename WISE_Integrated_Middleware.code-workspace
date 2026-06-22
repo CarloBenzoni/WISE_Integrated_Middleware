@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../WISE_OPC UA Client VS"
+		},
+		{
+			"path": "../hmi_wise_DDG"
+		},
+		{
+			"path": "../WISE_Middleware_V01"
+		}
+	],
+	"settings": {}
+}
