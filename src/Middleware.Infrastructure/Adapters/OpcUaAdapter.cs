@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Middleware.Application.Abstractions.Adapters;
@@ -6,6 +7,8 @@ using Middleware.Infrastructure.Configuration;
 using Opc.Ua;
 using Opc.Ua.Client;
 using Opc.Ua.Configuration;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Globalization;
 
 namespace Middleware.Infrastructure.Adapters;
@@ -18,6 +21,7 @@ public sealed class OpcUaAdapter(
     private readonly SemaphoreSlim connectionLock = new(1, 1);
     private readonly SemaphoreSlim discoveryLock = new(1, 1);
     private readonly object reconnectSync = new();
+    private readonly ITelemetryContext telemetryContext = new NullTelemetryContext();
     private ApplicationConfiguration? configuration;
     private Session? session;
     private SessionReconnectHandler? reconnectHandler;
@@ -103,13 +107,14 @@ public sealed class OpcUaAdapter(
                 opcUaOptions.EndpointUrl,
                 opcUaOptions.UseSecurity,
                 15000,
+                telemetryContext,
                 cancellationToken);
 
             var endpointConfiguration = EndpointConfiguration.Create(configuration);
             var configuredEndpoint = new ConfiguredEndpoint(null, endpointDescription, endpointConfiguration);
             var userIdentity = BuildUserIdentity(opcUaOptions.User);
 
-            session = await Session.Create(
+            session = (Session)await new DefaultSessionFactory(telemetryContext).CreateAsync(
                 configuration,
                 configuredEndpoint,
                 false,
@@ -184,7 +189,7 @@ public sealed class OpcUaAdapter(
         await appConfiguration.ValidateAsync(ApplicationType.Client);
         appConfiguration.CertificateValidator.CertificateValidation += OnCertificateValidation;
 
-        var appInstance = new ApplicationInstance(appConfiguration);
+        var appInstance = new ApplicationInstance(appConfiguration, telemetryContext);
         var haveCertificate = await appInstance.CheckApplicationInstanceCertificatesAsync(false, 2048, cancellationToken);
         if (!haveCertificate)
         {
@@ -219,7 +224,7 @@ public sealed class OpcUaAdapter(
             }
 
             logger.LogWarning("OPC UA keepalive bad for PLC {PlcId}: {Status}. Starting reconnect.", opcUaOptions.PlcId, args.Status);
-            reconnectHandler = new SessionReconnectHandler(true);
+            reconnectHandler = new SessionReconnectHandler(telemetryContext, true, -1);
             reconnectHandler.BeginReconnect(currentSession, opcUaOptions.ReconnectPeriodMs, OnReconnectComplete);
         }
     }
@@ -586,6 +591,17 @@ public sealed class OpcUaAdapter(
         count++;
         usedKeys[baseKey] = count;
         return $"{baseKey}_{count}";
+    }
+
+    private sealed class NullTelemetryContext : ITelemetryContext
+    {
+        public ILoggerFactory LoggerFactory { get; } = NullLoggerFactory.Instance;
+        public ActivitySource ActivitySource { get; } = new(nameof(OpcUaAdapter));
+
+        public Meter CreateMeter()
+        {
+            return new Meter(nameof(OpcUaAdapter));
+        }
     }
 
     private sealed record ResolvedTelemetryNode(string NodeId, string PayloadKey);
