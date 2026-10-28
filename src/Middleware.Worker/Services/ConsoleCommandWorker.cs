@@ -10,12 +10,14 @@ namespace Middleware.Worker.Services;
 public sealed class ConsoleCommandWorker(
     ILogger<ConsoleCommandWorker> logger,
     IServiceScopeFactory serviceScopeFactory,
-    IOptions<MiddlewareOptions> options) : BackgroundService
+    IOptions<MiddlewareOptions> options,
+    IOptions<TwinCatTelemetryOptions> twinCatOptions,
+    TwinCatTelemetryControl twinCatControl) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation(
-            "Console commands enabled. Use 'upload-files <username>', 'polaris-run <localFileNameOrPath> [remoteFileName]', 'polaris-run-remote <remoteFileName>', 'polaris-enable-axis <axisName>', 'polaris-gcode-status' or 'polaris-info'.");
+            "Console commands enabled. TwinCAT commands: 'twincat start', 'twincat stop', 'twincat status'. Other commands: 'upload-files <username>', 'polaris-run <localFileNameOrPath> [remoteFileName]', 'polaris-run-remote <remoteFileName>', 'polaris-enable-axis <axisName>', 'polaris-gcode-status' or 'polaris-info'.");
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -30,6 +32,11 @@ public sealed class ConsoleCommandWorker(
                 break;
             }
 
+            if (input is null)
+            {
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(input))
             {
                 continue;
@@ -38,6 +45,46 @@ public sealed class ConsoleCommandWorker(
             var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (parts.Length == 0)
             {
+                continue;
+            }
+
+            if (parts[0].Equals("twincat", StringComparison.OrdinalIgnoreCase))
+            {
+                var enableMode = twinCatOptions.Value.EnableMode;
+                if (!enableMode.Equals("MiddlewareCommand", StringComparison.OrdinalIgnoreCase))
+                {
+                    logger.LogWarning("TwinCAT commands are unavailable with EnableMode {EnableMode}.", enableMode);
+                    continue;
+                }
+
+                if (parts.Length != 2 || !parts[1].Equals("start", StringComparison.OrdinalIgnoreCase)
+                    && !parts[1].Equals("stop", StringComparison.OrdinalIgnoreCase)
+                    && !parts[1].Equals("status", StringComparison.OrdinalIgnoreCase))
+                {
+                    logger.LogWarning("Usage: twincat <start|stop|status>");
+                    continue;
+                }
+
+                if (parts[1].Equals("status", StringComparison.OrdinalIgnoreCase))
+                {
+                    logger.LogInformation("TwinCAT telemetry collection is {State}.",
+                        twinCatControl.IsEnabled ? "enabled" : "disabled");
+                }
+                else
+                {
+                    var enabled = parts[1].Equals("start", StringComparison.OrdinalIgnoreCase);
+                    if (twinCatControl.SetEnabled(enabled))
+                    {
+                        logger.LogInformation("TwinCAT telemetry collection {State} by middleware command.",
+                            enabled ? "enabled" : "disabled");
+                    }
+                    else
+                    {
+                        logger.LogInformation("TwinCAT telemetry collection is already {State}.",
+                            enabled ? "enabled" : "disabled");
+                    }
+                }
+
                 continue;
             }
 

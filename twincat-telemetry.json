@@ -1,0 +1,90 @@
+{
+  "TwinCatTelemetry": {
+    "Enabled": false,
+    "EnableMode": "MiddlewareCommand",
+    "EnableSymbol": "",
+    "EnablePollingIntervalMs": 1000,
+    "SourceId": "DALP-TwinCAT",
+    "RemoteAmsNetId": "10.21.57.104.1.1",
+    "AdsPort": 851,
+    "Groups": [
+      {
+        "Name": "process",
+        "PollingIntervalMs": 1000,
+        "Variables": [
+          { "Key": "process.manual_vs_auto", "Symbol": "GVL_Process.bProcessManVsAut", "DataType": "BOOL" },
+          { "Key": "process.chiller_ready", "Symbol": "GVL_Process.bChillerUnitReady", "DataType": "BOOL" },
+          { "Key": "process.pressure.a_dst", "Symbol": "GVL_Process.rA_DST_Pressure", "DataType": "REAL" },
+          { "Key": "process.pressure.b_dst", "Symbol": "GVL_Process.rB_DST_Pressure", "DataType": "REAL" },
+          { "Key": "process.pressure.a_cmb", "Symbol": "GVL_Process.rA_CMB_Pressure", "DataType": "REAL" },
+          { "Key": "process.pressure.b_cmb", "Symbol": "GVL_Process.rB_CMB_Pressure", "DataType": "REAL" },
+          { "Key": "process.pressure.ab_exhaust", "Symbol": "GVL_Process.rAB_EXH_Pressure", "DataType": "REAL" },
+          { "Key": "process.head_plate_distance", "Symbol": "GVL_Process.rHeadPlateDistance", "DataType": "REAL" },
+          { "Key": "process.ozone_setpoint", "Symbol": "GVL_Process.iOzoneGenerator_SP", "DataType": "INT" },
+          { "Key": "process.mfc_a.setpoint", "Symbol": "GVL_Process.MFCT_A_01.MassFlowSetPoint", "DataType": "LREAL" },
+          { "Key": "process.mfc_a.feedback", "Symbol": "GVL_Process.MFCT_A_01.MassFlowFeedback", "DataType": "LREAL" },
+          { "Key": "process.mfc_b.setpoint", "Symbol": "GVL_Process.MFCT_B_01.MassFlowSetPoint", "DataType": "LREAL" },
+          { "Key": "process.mfc_b.feedback", "Symbol": "GVL_Process.MFCT_B_01.MassFlowFeedback", "DataType": "LREAL" },
+          { "Key": "process.mfc_ig.setpoint", "Symbol": "GVL_Process.MFCT_IG_01.MassFlowSetPoint", "DataType": "LREAL" },
+          { "Key": "process.mfc_ig.feedback", "Symbol": "GVL_Process.MFCT_IG_01.MassFlowFeedback", "DataType": "LREAL" },
+          { "Key": "process.valve.a_control", "Symbol": "GVL_Process.VALV_A_CTL", "DataType": "BOOL" },
+          { "Key": "process.valve.b_control", "Symbol": "GVL_Process.VALV_B_CTL", "DataType": "BOOL" },
+          { "Key": "process.valve.a_mfc", "Symbol": "GVL_Process.VALV_A_MFC01", "DataType": "BOOL" },
+          { "Key": "process.valve.b_mfc", "Symbol": "GVL_Process.VALV_B_MFC01", "DataType": "BOOL" },
+          { "Key": "process.valve.ig_mfc", "Symbol": "GVL_Process.VALV_IG_MFC01", "DataType": "BOOL" },
+          { "Key": "process.valve.exhaust_pump", "Symbol": "GVL_Process.VALV_EX_PUMP", "DataType": "BOOL" }
+        ]
+      },
+      {
+        "Name": "temperature",
+        "PollingIntervalMs": 20000,
+        "Variables": [
+          { "Key": "temperature.zone01.actual", "Symbol": "GVL_Process.aZones[1].fActualTemp", "DataType": "LREAL" },
+          { "Key": "temperature.zone01.setpoint", "Symbol": "GVL_Process.aZones[1].fSetPoint", "DataType": "LREAL" },
+          { "Key": "temperature.zone01.error", "Symbol": "GVL_Process.aZones[1].bError", "DataType": "BOOL" },
+          { "Key": "temperature.zone02.actual", "Symbol": "GVL_Process.aZones[2].fActualTemp", "DataType": "LREAL" },
+          { "Key": "temperature.zone02.setpoint", "Symbol": "GVL_Process.aZones[2].fSetPoint", "DataType": "LREAL" },
+          { "Key": "temperature.zone02.error", "Symbol": "GVL_Process.aZones[2].bError", "DataType": "BOOL" },
+          { "Key": "temperature.zone03.actual", "Symbol": "GVL_Process.aZones[3].fActualTemp", "DataType": "LREAL" },
+          { "Key": "temperature.zone03.setpoint", "Symbol": "GVL_Process.aZones[3].fSetPoint", "DataType": "LREAL" },
+          { "Key": "temperature.zone03.error", "Symbol": "GVL_Process.aZones[3].bError", "DataType": "BOOL" },
+          { "Key": "temperature.zone04.actual", "Symbol": "GVL_Process.aZones[4].fActualTemp", "DataType": "LREAL" },
+          { "Key": "temperature.zone04.setpoint", "Symbol": "GVL_Process.aZones[4].fSetPoint", "DataType": "LREAL" },
+          { "Key": "temperature.zone04.error", "Symbol": "GVL_Process.aZones[4].bError", "DataType": "BOOL" },
+          { "Key": "temperature.zone05.actual", "Symbol": "GVL_Process.aZones[5].fActualTemp", "DataType": "LREAL" },
+          { "Key": "temperature.zone05.setpoint", "Symbol": "GVL_Process.aZones[5].fSetPoint", "DataType": "LREAL" },
+          { "Key": "temperature.zone05.error", "Symbol": "GVL_Process.aZones[5].bError", "DataType": "BOOL" },
+          { "Key": "temperature.zone06.actual", "Symbol": "GVL_Process.aZones[6].fActualTemp", "DataType": "LREAL" },
+          { "Key": "temperature.zone06.setpoint", "Symbol": "GVL_Process.aZones[6].fSetPoint", "DataType": "LREAL" },
+          { "Key": "temperature.zone06.error", "Symbol": "GVL_Process.aZones[6].bError", "DataType": "BOOL" },
+          { "Key": "temperature.zone07.actual", "Symbol": "GVL_Process.aZones[7].fActualTemp", "DataType": "LREAL" },
+          { "Key": "temperature.zone07.setpoint", "Symbol": "GVL_Process.aZones[7].fSetPoint", "DataType": "LREAL" },
+          { "Key": "temperature.zone07.error", "Symbol": "GVL_Process.aZones[7].bError", "DataType": "BOOL" },
+          { "Key": "temperature.zone08.actual", "Symbol": "GVL_Process.aZones[8].fActualTemp", "DataType": "LREAL" },
+          { "Key": "temperature.zone08.setpoint", "Symbol": "GVL_Process.aZones[8].fSetPoint", "DataType": "LREAL" },
+          { "Key": "temperature.zone08.error", "Symbol": "GVL_Process.aZones[8].bError", "DataType": "BOOL" },
+          { "Key": "temperature.zone09.actual", "Symbol": "GVL_Process.aZones[9].fActualTemp", "DataType": "LREAL" },
+          { "Key": "temperature.zone09.setpoint", "Symbol": "GVL_Process.aZones[9].fSetPoint", "DataType": "LREAL" },
+          { "Key": "temperature.zone09.error", "Symbol": "GVL_Process.aZones[9].bError", "DataType": "BOOL" },
+          { "Key": "temperature.zone10.actual", "Symbol": "GVL_Process.aZones[10].fActualTemp", "DataType": "LREAL" },
+          { "Key": "temperature.zone10.setpoint", "Symbol": "GVL_Process.aZones[10].fSetPoint", "DataType": "LREAL" },
+          { "Key": "temperature.zone10.error", "Symbol": "GVL_Process.aZones[10].bError", "DataType": "BOOL" },
+          { "Key": "temperature.zone11.actual", "Symbol": "GVL_Process.aZones[11].fActualTemp", "DataType": "LREAL" },
+          { "Key": "temperature.zone11.setpoint", "Symbol": "GVL_Process.aZones[11].fSetPoint", "DataType": "LREAL" },
+          { "Key": "temperature.zone11.error", "Symbol": "GVL_Process.aZones[11].bError", "DataType": "BOOL" }
+        ]
+      },
+      {
+        "Name": "power",
+        "PollingIntervalMs": 5000,
+        "Variables": [
+          { "Key": "power.active_total", "Symbol": "GVL_Power.PowerMeter.ActivePowerTotal", "DataType": "LREAL" },
+          { "Key": "power.energy_import_wh", "Symbol": "GVL_Power.PowerMeter.ActiveEnergyImport_Wh", "DataType": "LREAL" },
+          { "Key": "power.energy_export_wh", "Symbol": "GVL_Power.PowerMeter.ActiveEnergyExport_Wh", "DataType": "LREAL" },
+          { "Key": "power.communication_ok", "Symbol": "GVL_Power.PowerMeter.CommunicationOK", "DataType": "BOOL" },
+          { "Key": "power.error", "Symbol": "GVL_Power.PowerMeter.Error", "DataType": "BOOL" }
+        ]
+      }
+    ]
+  }
+}

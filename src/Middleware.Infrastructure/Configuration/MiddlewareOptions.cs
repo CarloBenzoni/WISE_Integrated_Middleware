@@ -17,6 +17,7 @@ public sealed class MongoOptions
     public string ConnectionString { get; set; } = "mongodb://localhost:27017";
     public string Database { get; set; } = "WISE";
     public string PlcTelemetryCollection { get; set; } = "integration_plc_telemetry";
+    public string TwinCatTelemetryCollection { get; set; } = "integration_twincat_telemetry";
     public string FileMetadataCollection { get; set; } = "integration_file_artifacts";
     public string ProductionDesignCollection { get; set; } = "production_designs";
     public string ProductionJobCollection { get; set; } = "production_jobs";

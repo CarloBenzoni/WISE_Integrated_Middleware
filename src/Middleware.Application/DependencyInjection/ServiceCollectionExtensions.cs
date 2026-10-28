@@ -15,4 +15,10 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    public static IServiceCollection AddTwinCatTelemetryApplication(this IServiceCollection services)
+    {
+        services.AddScoped<Services.TwinCatTelemetryIngestionService>();
+        return services;
+    }
 }

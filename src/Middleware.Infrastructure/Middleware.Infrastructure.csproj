@@ -18,23 +18,28 @@
   <ItemGroup>
     <PackageReference Include="MongoDB.Driver" Version="3.6.0" />
     <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua" Version="1.5.378.106" />
+    <PackageReference Include="Beckhoff.TwinCAT.Ads" Version="6.2.521" />
   </ItemGroup>
 
   <ItemGroup>
     <Reference Include="PolarisCommunicationNET">
-      <HintPath>C:\Users\carlo\Documents\PolarisDemonstration\packages\PolarisCommunicationNET.2.14.3.11\lib\netstandard2.0\PolarisCommunicationNET.dll</HintPath>
+      <HintPath Condition="Exists('C:\Users\carlo\Documents\PolarisDemonstration\packages\PolarisCommunicationNET.2.14.3.11\lib\netstandard2.0\PolarisCommunicationNET.dll')">C:\Users\carlo\Documents\PolarisDemonstration\packages\PolarisCommunicationNET.2.14.3.11\lib\netstandard2.0\PolarisCommunicationNET.dll</HintPath>
+      <HintPath Condition="!Exists('C:\Users\carlo\Documents\PolarisDemonstration\packages\PolarisCommunicationNET.2.14.3.11\lib\netstandard2.0\PolarisCommunicationNET.dll')">..\..\artifacts\verify\api\PolarisCommunicationNET.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="PolarisUtility">
-      <HintPath>C:\Users\carlo\Documents\PolarisDemonstration\packages\PolarisUtility.2.14.3.11\lib\netstandard2.0\PolarisUtility.dll</HintPath>
+      <HintPath Condition="Exists('C:\Users\carlo\Documents\PolarisDemonstration\packages\PolarisUtility.2.14.3.11\lib\netstandard2.0\PolarisUtility.dll')">C:\Users\carlo\Documents\PolarisDemonstration\packages\PolarisUtility.2.14.3.11\lib\netstandard2.0\PolarisUtility.dll</HintPath>
+      <HintPath Condition="!Exists('C:\Users\carlo\Documents\PolarisDemonstration\packages\PolarisUtility.2.14.3.11\lib\netstandard2.0\PolarisUtility.dll')">..\..\artifacts\verify\api\PolarisUtility.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="NetMQ">
-      <HintPath>C:\Users\carlo\.nuget\packages\netmq\4.0.1.13\lib\netstandard2.0\NetMQ.dll</HintPath>
+      <HintPath Condition="Exists('C:\Users\carlo\.nuget\packages\netmq\4.0.1.13\lib\netstandard2.0\NetMQ.dll')">C:\Users\carlo\.nuget\packages\netmq\4.0.1.13\lib\netstandard2.0\NetMQ.dll</HintPath>
+      <HintPath Condition="!Exists('C:\Users\carlo\.nuget\packages\netmq\4.0.1.13\lib\netstandard2.0\NetMQ.dll')">..\..\artifacts\verify\api\NetMQ.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="Renci.SshNet">
-      <HintPath>C:\Users\carlo\.nuget\packages\ssh.net\2024.1.0\lib\net8.0\Renci.SshNet.dll</HintPath>
+      <HintPath Condition="Exists('C:\Users\carlo\.nuget\packages\ssh.net\2024.1.0\lib\net8.0\Renci.SshNet.dll')">C:\Users\carlo\.nuget\packages\ssh.net\2024.1.0\lib\net8.0\Renci.SshNet.dll</HintPath>
+      <HintPath Condition="!Exists('C:\Users\carlo\.nuget\packages\ssh.net\2024.1.0\lib\net8.0\Renci.SshNet.dll')">..\..\artifacts\verify\api\Renci.SshNet.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>

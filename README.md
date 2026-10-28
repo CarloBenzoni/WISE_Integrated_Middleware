@@ -261,6 +261,16 @@ Steps:
 The middleware supports dynamic discovery of OPC UA variables under the configured node.  
 This reduces dependency on hardcoded variable mapping.
 
+### 5.1.1 TwinCAT ADS → MongoDB Flow
+
+TwinCAT collection is implemented as a separate Worker module and uses its own configuration file, `twincat-telemetry.json`.
+
+The file defines the remote AMS Net ID, PLC runtime ADS port, source ID, enable mode, and polling groups. Each group owns its variable list and polling interval: process signals are polled every second, temperatures every 20 seconds, and power measurements every 5 seconds. Plane and axis values are excluded. In `MiddlewareCommand` mode, `Enabled` sets the startup state and the Worker console can start or stop collection while it is running. In `PlcSymbol` mode, the Worker follows a configured PLC Boolean and fails closed if that signal cannot be read. ADS access to the enable symbol is read-only; it does not write to the PLC.
+
+The Worker stores these records in MongoDB collection `integration_twincat_telemetry`, separate from the existing OPC UA collection. Each document includes the source ID, group ID, observed and ingested timestamps, values, and any per-variable read errors. This first version does not add TwinCAT records to the existing `/api/telemetry` endpoints.
+
+When the Worker is running interactively with `EnableMode` set to `MiddlewareCommand`, enter `twincat start`, `twincat stop`, or `twincat status` in its console. `Enabled` in `twincat-telemetry.json` controls the startup state; console changes apply only until the Worker restarts. To control collection from the TwinCAT HMI, set `EnableMode` to `PlcSymbol` and configure `EnableSymbol` with a PLC `BOOL` that the HMI/operator can change. The worker reads that symbol at `EnablePollingIntervalMs` and starts or stops saving accordingly. The BOOL must be added and deployed in the PLC project before enabling this mode. If the symbol is unreadable or the ADS connection is lost, automatic collection stops.
+
 ### 5.2 Documents → HDFS + MongoDB Flow
 
 Steps:
@@ -420,6 +430,18 @@ Current commands:
 - `polaris-gcode-status`
 - `polaris-info`
 
+For a one-shot, read-only TwinCAT ADS check, run the Worker with the `--twincat-read` command-line mode. It reads the selected configured group and prints values to the terminal without starting background workers or saving telemetry to MongoDB:
+
+```powershell
+dotnet run --project .\src\Middleware.Worker -- --twincat-read process process.pressure.a_dst,process.pressure.b_dst
+```
+
+The optional third argument selects comma-separated variable keys from that group:
+
+```powershell
+dotnet run --project .\src\Middleware.Worker -- --twincat-read temperature temperature.zone01.actual,temperature.zone01.setpoint
+```
+
 This mode is designed primarily for:
 
 - quick testing
@@ -433,6 +455,8 @@ Shared configuration is found in the file:
 - [`appsettings.json`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\appsettings.json)
 
 Both `Middleware.Api` and `Middleware.Worker` read the same file.
+
+The TwinCAT ADS module has a separate `twincat-telemetry.json`, loaded only by `Middleware.Worker`.
 
 Main sections:
 
@@ -448,6 +472,7 @@ Main sections:
 - `ConnectionString`
 - `Database`
 - `PlcTelemetryCollection`
+- `TwinCatTelemetryCollection`
 - `FileMetadataCollection`
 - `ProductionDesignCollection`
 - `ProductionJobCollection`

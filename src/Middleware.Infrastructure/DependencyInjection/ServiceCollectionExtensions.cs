@@ -30,4 +30,14 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    public static IServiceCollection AddTwinCatTelemetryInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.Configure<TwinCatTelemetryOptions>(configuration.GetSection("TwinCatTelemetry"));
+        services.AddSingleton<ITwinCatTelemetryAdapter, TwinCatAdsTelemetryAdapter>();
+        services.AddSingleton<ITwinCatTelemetryRepository, MongoTwinCatTelemetryRepository>();
+        return services;
+    }
 }
