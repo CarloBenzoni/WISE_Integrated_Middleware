@@ -1,5 +1,6 @@
 using Middleware.Application.DependencyInjection;
 using Middleware.Infrastructure.DependencyInjection;
+using Middleware.Api.LocalServices;
 
 var builder = WebApplication.CreateBuilder(args);
 var sharedAppSettingsPath = ResolveSharedAppSettingsPath(builder.Environment.ContentRootPath);
@@ -17,6 +18,9 @@ builder.Services
     .AddTwinCatTelemetryInfrastructure(builder.Configuration);
 
 builder.Services.AddControllers();
+builder.Services.AddSingleton<WindowsServiceTasks>();
+builder.Services.AddSingleton<LocalServiceManager>();
+builder.Services.AddHostedService<LocalServiceStartup>();
 
 var app = builder.Build();
 

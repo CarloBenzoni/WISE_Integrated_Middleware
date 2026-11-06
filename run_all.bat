@@ -17,4 +17,5 @@ start "Middleware.Api" cmd /k dotnet run --no-build --configuration Debug --proj
 start "Middleware.Worker" cmd /k dotnet run --no-build --configuration Debug --project .\src\Middleware.Worker\Middleware.Worker.csproj
 start "ProcessCoordinator" cmd /k dotnet run --no-build --configuration Debug --project .\src\ProcessCoordinator\ProcessCoordinator.csproj
 
-echo Opened Middleware.Api, Middleware.Worker, and ProcessCoordinator consoles. Check each console for startup status.
+echo Opened Middleware.Api, Middleware.Worker, and ProcessCoordinator consoles.
+echo Middleware.Api starts and checks MongoDB, Elasticsearch, HDFS, and Monstache. Check its console or WebApp System Status for the result.

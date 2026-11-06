@@ -1,0 +1,17 @@
+{
+  "mongoMode": "process",
+  "mongoExe": "C:\\Program Files\\MongoDB\\Server\\8.3\\bin\\mongod.exe",
+  "mongoShell": "C:\\mongosh\\bin\\mongosh.exe",
+  "mongoData": "C:\\data\\db1",
+  "mongoService": "MongoDB",
+  "mongoUri": "mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000",
+  "mongoPort": 27017,
+  "mongoReplicaSet": "rs0",
+  "hadoopHome": "C:\\hadoop\\hadoop-3.4.0",
+  "hdfsHealthUrl": "http://127.0.0.1:9870/jmx?qry=Hadoop:service=NameNode,name=NameNodeInfo",
+  "elasticService": "elasticsearch-service-x64",
+  "monstacheExe": "C:\\monstache\\monstache.exe",
+  "monstacheConfig": "C:\\monstache\\config.toml",
+  "monstacheHealthAddress": "127.0.0.1:8081"
+}
+

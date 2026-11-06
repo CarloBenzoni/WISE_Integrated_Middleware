@@ -27,6 +27,33 @@ Changes Applied: First released version
 
 `WISE_Integrated_Middleware` is the integration layer of the WISE project.
 
+## Local Windows services
+
+`Middleware.Api` checks and starts MongoDB (`C:\data\db1`, replica set `rs0`),
+Elasticsearch, Hadoop HDFS and Monstache when it starts. The services already
+running are reused. Monstache starts after MongoDB and Elasticsearch are ready.
+The WebApp System Status panel reads and controls these services through
+`Middleware.Api`; the WebApp does not run Windows service commands.
+
+Existing `WISE-LocalServices` tasks installed from the earlier WebApp can be
+reused without reinstalling them. If tasks are missing, or if their scripts or
+configuration change, run the setup from an administrator PowerShell under the
+Windows account used to run WISE:
+
+```powershell
+cd "C:\Users\info\Documents\MCH_Software\WISE\Middleware\WISE_Integrated_Middleware"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\local-services\Install-ServiceTasks.ps1
+```
+
+This updates nine protected scheduled tasks in `C:\Program Files\WISE-LocalServices`.
+It does not start services or change MongoDB data. The setup persists across PC
+restarts; rerun it after changing the local service scripts or configuration.
+Then start `run_all.bat` normally, without administrator privileges. The API
+reports the result in its console and at `GET /api/local-services` on loopback.
+To monitor without automatic startup, set `LOCAL_SERVICE_AUTOSTART=false` in
+the Middleware.Api environment. `LOCAL_SERVICE_MANAGER_ENABLED=false` disables
+the manager entirely. These API routes only accept local requests.
+
 Its purpose is to act as a bridge between:
 
 - OT/industrial components, such as PLCs and machine controllers
