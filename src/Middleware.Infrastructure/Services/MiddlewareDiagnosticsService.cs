@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Net.Sockets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Middleware.Application.Abstractions.Adapters;
 using Middleware.Application.Services;
 using Middleware.Infrastructure.Configuration;
 using MongoDB.Bson;
@@ -12,7 +13,9 @@ namespace Middleware.Infrastructure.Services;
 public sealed class MiddlewareDiagnosticsService(
     IOptions<MiddlewareOptions> options,
     IHttpClientFactory httpClientFactory,
-    IServiceScopeFactory scopeFactory)
+    IServiceScopeFactory scopeFactory,
+    IOptions<TwinCatTelemetryOptions> twinCatOptions,
+    ITwinCatTelemetryAdapter twinCatAdapter)
 {
     public async Task<MiddlewareDiagnosticsSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
     {
@@ -22,7 +25,8 @@ public sealed class MiddlewareDiagnosticsService(
             await ProbeWebHdfsAsync(cancellationToken),
             await ProbeDataNodeAsync(cancellationToken),
             await ProbeOpcUaAsync(cancellationToken),
-            await ProbePolarisAsync(cancellationToken)
+            await ProbePolarisAsync(cancellationToken),
+            await ProbeAdsAsync(cancellationToken)
         };
 
         return new MiddlewareDiagnosticsSnapshot(
@@ -219,6 +223,74 @@ public sealed class MiddlewareDiagnosticsService(
             {
                 ["ipAddress"] = polarisOptions.IpAddress
             });
+        }
+    }
+
+    private async Task<ComponentProbeResult> ProbeAdsAsync(CancellationToken cancellationToken)
+    {
+        var settings = twinCatOptions.Value;
+        var details = new Dictionary<string, string>
+        {
+            ["controllerTarget"] = string.IsNullOrWhiteSpace(settings.RemoteAmsNetId) ? "Not configured" : settings.RemoteAmsNetId,
+            ["runtimePort"] = settings.AdsPort.ToString(),
+            ["sourceId"] = settings.SourceId
+        };
+
+        if (string.IsNullOrWhiteSpace(settings.RemoteAmsNetId))
+        {
+            return new ComponentProbeResult(
+                "ADS",
+                false,
+                "skipped",
+                "DALP controller connection not configured",
+                details);
+        }
+
+        var group = settings.Groups.FirstOrDefault(item =>
+            !string.IsNullOrWhiteSpace(item.Name) && item.Variables.Count > 0);
+        if (group is null)
+        {
+            return new ComponentProbeResult(
+                "ADS",
+                false,
+                "skipped",
+                "No DALP diagnostic signal is configured",
+                details);
+        }
+
+        var variable = group.Variables[0];
+        details["diagnosticSignal"] = variable.Key;
+
+        try
+        {
+            var sample = await twinCatAdapter.ReadGroupAsync(
+                settings.SourceId,
+                group.Name,
+                [variable.ToDomain()],
+                cancellationToken);
+
+            if (sample.Payload.Count != 1 || sample.ReadErrors.Count > 0)
+            {
+                var error = sample.ReadErrors.Values.FirstOrDefault() ?? "The diagnostic signal was not returned.";
+                details["diagnosticError"] = error;
+                return new ComponentProbeResult(
+                    "ADS",
+                    false,
+                    "unhealthy",
+                    "DALP controller did not return its diagnostic signal",
+                    details);
+            }
+
+            return new ComponentProbeResult(
+                "ADS",
+                true,
+                "healthy",
+                "DALP controller responded to its diagnostic signal",
+                details);
+        }
+        catch (Exception exception)
+        {
+            return BuildFailure("ADS", exception, details);
         }
     }
 

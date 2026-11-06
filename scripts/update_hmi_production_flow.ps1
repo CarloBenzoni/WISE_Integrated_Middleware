@@ -1,6 +1,21 @@
 $ErrorActionPreference = 'Stop'
 
-$hmiRoot = 'C:\Users\carlo\source\repos\hmi_wise_DDG\WISE\src'
+param(
+    [string]$HmiRoot = $env:WISE_HMI_ROOT
+)
+
+if ([string]::IsNullOrWhiteSpace($HmiRoot)) {
+    $candidateRoot = Join-Path $PSScriptRoot '..\..\hmi_wise_DDG\WISE\src'
+    $resolvedCandidate = [System.IO.Path]::GetFullPath($candidateRoot)
+
+    if (Test-Path $resolvedCandidate) {
+        $HmiRoot = $resolvedCandidate
+    } else {
+        throw 'HMI root not provided. Pass -HmiRoot or set WISE_HMI_ROOT.'
+    }
+}
+
+$hmiRoot = $HmiRoot
 
 function Write-Utf8File {
     param(

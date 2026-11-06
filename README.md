@@ -430,7 +430,7 @@ This mode is designed primarily for:
 
 Shared configuration is found in the file:
 
-- [`appsettings.json`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\appsettings.json)
+- `appsettings.json`
 
 Both `Middleware.Api` and `Middleware.Worker` read the same file.
 
@@ -615,6 +615,44 @@ Current limitations:
 
 ## 11. Getting Started if You're New to the Project
 
+## 11. Prerequisites
+
+Before running the solution locally, make sure these requirements are available.
+
+### Required to build and start the hosts
+
+- Windows machine
+- `.NET 8 SDK` installed
+- `dotnet` available from terminal
+- the repository file `appsettings.json` present at repo root
+
+The projects target `net8.0`, so having only `.NET 10` installed is not enough to run them.
+
+### External systems used by the middleware
+
+- `MongoDB`
+- `WebHDFS / HDFS`
+- `OPC UA server`
+- `Polaris controller`
+
+Not every dependency is equally required for every local scenario.
+
+### Minimum dependencies by host
+
+- `Middleware.Api`: starts its HTTP API and runs startup diagnostics. In the current configuration it expects `MongoDB`, `WebHDFS`, `OPC UA`, and `Polaris` to be reachable.
+- `Middleware.Worker`: requires the same shared configuration and starts polling / console services. In practice it is useful only if `MongoDB` and `OPC UA` are available, and startup diagnostics also check `WebHDFS` and `Polaris`.
+- `ProcessCoordinator`: requires `MongoDB` plus the production-related external systems it orchestrates. Startup diagnostics also check `WebHDFS`, `OPC UA`, and `Polaris`.
+
+### Local paths that usually need customization
+
+The default `appsettings.json` still contains machine-specific local folders under:
+
+- `Middleware.Storage.UploadFolderPath`
+- `Middleware.Storage.DownloadFolderPath`
+- `Middleware.Polaris.LocalGCodeFolderPath`
+
+Update them for your PC before using document upload or Polaris local file workflows.
+
 If a new person takes over the project, the correct order to understand and use it is this.
 
 ### Step 1: Understand the Two Hosts
@@ -631,7 +669,7 @@ The Worker handles polling and console commands.
 
 Open:
 
-- [`appsettings.json`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\appsettings.json)
+- `appsettings.json`
 
 and verify:
 
@@ -640,6 +678,7 @@ and verify:
 - HDFS config
 - Polaris config
 - worker polling
+- local upload/download paths
 
 ### Step 3: Understand the Layers
 
@@ -664,20 +703,39 @@ To use the middleware locally, you need at least:
 Then:
 
 ```powershell
-dotnet run --project .\src\Middleware.Api
+dotnet run --project .\src\Middleware.Api\Middleware.Api.csproj
 ```
 
 and/or
 
 ```powershell
-dotnet run --project .\src\Middleware.Worker
+dotnet run --project .\src\Middleware.Worker\Middleware.Worker.csproj
 ```
 
 and, for production orchestration:
 
 ```powershell
-dotnet run --project .\src\ProcessCoordinator
+dotnet run --project .\src\ProcessCoordinator\ProcessCoordinator.csproj
 ```
+
+Or start all three hosts together:
+
+```powershell
+.\run_all.bat
+```
+
+If you are in PowerShell, remember to include `.\` before the batch file name.
+
+### Step 4.1: Quick local verification
+
+Use these commands to confirm the local toolchain before starting the hosts:
+
+```powershell
+dotnet --version
+dotnet build WISE_Integrated_Middleware.sln
+```
+
+If `dotnet` is not recognized, your PATH is not configured correctly for the current terminal session.
 
 ### Step 5: Understand the Flows Before Modifying Code
 
@@ -694,25 +752,38 @@ This avoids touching the wrong layer.
 
 If you need to become independent, these are the files to read first:
 
-- [`appsettings.json`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\appsettings.json)
-- [`src/Middleware.Api/Program.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Api\Program.cs)
-- [`src/Middleware.Worker/Program.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Worker\Program.cs)
-- [`src/Middleware.Application/Services/MiddlewareIngestionService.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Application\Services\MiddlewareIngestionService.cs)
-- [`src/Middleware.Application/Services/FileUploadService.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Application\Services\FileUploadService.cs)
-- [`src/Middleware.Application/Services/PolarisGCodeService.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Application\Services\PolarisGCodeService.cs)
-- [`src/Middleware.Application/Services/ProductionDesignService.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Application\Services\ProductionDesignService.cs)
-- [`src/Middleware.Application/Services/ProductionJobService.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Application\Services\ProductionJobService.cs)
-- [`src/Middleware.Infrastructure/Adapters/OpcUaAdapter.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Infrastructure\Adapters\OpcUaAdapter.cs)
-- [`src/Middleware.Infrastructure/Adapters/WebHdfsFileStorageAdapter.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Infrastructure\Adapters\WebHdfsFileStorageAdapter.cs)
-- [`src/Middleware.Infrastructure/Adapters/PolarisGCodeAdapter.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Infrastructure\Adapters\PolarisGCodeAdapter.cs)
-- [`src/Middleware.Api/Controllers/DocumentsController.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Api\Controllers\DocumentsController.cs)
-- [`src/Middleware.Api/Controllers/TelemetryController.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Api\Controllers\TelemetryController.cs)
-- [`src/Middleware.Api/Controllers/PolarisController.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Api\Controllers\PolarisController.cs)
-- [`src/Middleware.Api/Controllers/ProductionController.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Api\Controllers\ProductionController.cs)
-- [`src/Middleware.Infrastructure/Services/MiddlewareDiagnosticsService.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\Middleware.Infrastructure\Services\MiddlewareDiagnosticsService.cs)
-- [`src/ProcessCoordinator/Services/ProductionWorkflowCoordinator.cs`](c:\Users\carlo\source\repos\WISE_Integrated_Middleware\src\ProcessCoordinator\Services\ProductionWorkflowCoordinator.cs)
+- `appsettings.json`
+- `src/Middleware.Api/Program.cs`
+- `src/Middleware.Worker/Program.cs`
+- `src/Middleware.Application/Services/MiddlewareIngestionService.cs`
+- `src/Middleware.Application/Services/FileUploadService.cs`
+- `src/Middleware.Application/Services/PolarisGCodeService.cs`
+- `src/Middleware.Application/Services/ProductionDesignService.cs`
+- `src/Middleware.Application/Services/ProductionJobService.cs`
+- `src/Middleware.Infrastructure/Adapters/OpcUaAdapter.cs`
+- `src/Middleware.Infrastructure/Adapters/WebHdfsFileStorageAdapter.cs`
+- `src/Middleware.Infrastructure/Adapters/PolarisGCodeAdapter.cs`
+- `src/Middleware.Api/Controllers/DocumentsController.cs`
+- `src/Middleware.Api/Controllers/TelemetryController.cs`
+- `src/Middleware.Api/Controllers/PolarisController.cs`
+- `src/Middleware.Api/Controllers/ProductionController.cs`
+- `src/Middleware.Infrastructure/Services/MiddlewareDiagnosticsService.cs`
+- `src/ProcessCoordinator/Services/ProductionWorkflowCoordinator.cs`
 
-## 13. In Summary
+## 13. Common Startup Failures
+
+These are the most common local issues seen during startup.
+
+- `dotnet : The term 'dotnet' is not recognized`: the current terminal does not have `dotnet` in PATH.
+- `You must install or update .NET to run this application`: `.NET 8 runtime / SDK` is missing.
+- `Shared configuration file 'appsettings.json' was not found`: you are running from an unexpected working directory or the repo root config file is missing.
+- `WebHDFS NameNode unhealthy`: `Middleware.Storage.WebHdfsBaseUrl` is not reachable.
+- `MongoDB` connection failures: `Middleware.Mongo.ConnectionString` or the local MongoDB service is wrong.
+- `OPC UA` connection failures: the PLC endpoint in `Middleware.OpcUa.EndpointUrl` is not reachable.
+- `Polaris` connection failures: the configured Polaris IP is not reachable or the controller is not available.
+- `Cannot open log for source '.NET Runtime'`: the process is trying to write to Windows Event Log without sufficient permissions.
+
+## 14. In Summary
 
 If you had to explain the project to a new person in a few lines:
 
@@ -723,4 +794,4 @@ If you had to explain the project to a new person in a few lines:
 - `Application` orchestrates the use cases
 - `Domain` defines the shared data
 
-Il middleware e' quindi il punto unico di integrazione tra mondo macchina, storage e applicazioni client.
+Middleware is therefore the single point of integration between the machine, storage, and client applications.

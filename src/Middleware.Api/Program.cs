@@ -7,12 +7,14 @@ var sharedAppSettingsPath = ResolveSharedAppSettingsPath(builder.Environment.Con
 builder.Configuration.Sources.Clear();
 builder.Configuration
     .AddJsonFile(sharedAppSettingsPath, optional: false, reloadOnChange: true)
+    .AddJsonFile(Path.Combine(Path.GetDirectoryName(sharedAppSettingsPath)!, "twincat-telemetry.json"), optional: true, reloadOnChange: true)
     .AddEnvironmentVariables()
     .AddCommandLine(args);
 
 builder.Services
     .AddMiddlewareApplication()
-    .AddMiddlewareInfrastructure(builder.Configuration);
+    .AddMiddlewareInfrastructure(builder.Configuration)
+    .AddTwinCatTelemetryInfrastructure(builder.Configuration);
 
 builder.Services.AddControllers();
 
